@@ -41,75 +41,61 @@ export const loader = async ({ request }) => {
 
 
 
-  // Paginated fetch — loops until all orders are retrieved
-  let allOrders = [];
-  let hasNextPage = true;
-  let cursor = null;
-
-  while (hasNextPage) {
-    const response = await admin.graphql(
-      `#graphql
-      query getOrdersWithTracking($cursor: String) {
-        orders(first: 250, after: $cursor, sortKey: CREATED_AT, reverse: true) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              id
-              name
-              createdAt
-              customer {
-                firstName
-                lastName
+  const response = await admin.graphql(`
+    #graphql
+    query getOrdersWithTracking {
+      orders(first: 250, sortKey: CREATED_AT, reverse: true) {
+        edges {
+          node {
+            id
+            name
+            createdAt
+            customer {
+              firstName
+              lastName
+            }
+            displayFinancialStatus
+            displayFulfillmentStatus
+            totalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
               }
-              displayFinancialStatus
-              displayFulfillmentStatus
-              totalPriceSet {
-                shopMoney {
-                  amount
-                  currencyCode
-                }
-              }
-              lineItems(first: 10) {
-                edges {
-                  node {
-                    title
-                    quantity
-                    product {
-                      id
-                      productType
-                    }
+            }
+            lineItems(first: 10) {
+              edges {
+                node {
+                  title
+                  quantity
+                  product {
+                    id
+                    productType
                   }
                 }
               }
-              fulfillments {
-                id
-                status
-                displayStatus
-                trackingInfo {
-                  number
-                  url
-                  company
-                }
+            }
+            fulfillments {
+              id
+              status
+              displayStatus
+              trackingInfo {
+                number
+                url
+                company
               }
             }
           }
         }
-      }`,
-      { variables: { cursor } }
-    );
+      }
+    }
+  `);
 
-    const responseJson = await response.json();
-    const ordersPage = responseJson.data.orders;
+  const responseJson = await response.json();
+  let rawOrders = responseJson.data.orders.edges.map((edge) => edge.node);
 
-    allOrders = allOrders.concat(ordersPage.edges.map((edge) => edge.node));
-    hasNextPage = ordersPage.pageInfo.hasNextPage;
-    cursor = ordersPage.pageInfo.endCursor;
-  }
 
-  const enhancedOrders = allOrders.map((order) => {
+
+  const enhancedOrders = rawOrders.map((order) => {
     let orderDeliveryStatus = 'unknown';
 
     if (order.fulfillments && order.fulfillments.length > 0) {
@@ -132,6 +118,8 @@ export const loader = async ({ request }) => {
     }
     return { ...order, orderDeliveryStatus };
   });
+
+
 
   return enhancedOrders;
 };

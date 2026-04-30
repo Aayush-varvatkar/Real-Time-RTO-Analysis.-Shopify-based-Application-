@@ -52,66 +52,53 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  // Paginated fetch — loops until all orders are retrieved
-  let allOrders = [];
-  let hasNextPage = true;
-  let cursor = null;
 
-  while (hasNextPage) {
-    const response = await admin.graphql(
-      `#graphql
-      query getOrdersWithTrackingForAnalytics($cursor: String) {
-        orders(first: 250, after: $cursor, sortKey: CREATED_AT, reverse: true) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              id
-              name
-              createdAt
-              totalPriceSet {
-                shopMoney {
-                  amount
-                }
+  const response = await admin.graphql(`
+    #graphql
+    query getOrdersWithTrackingForAnalytics {
+      orders(first: 250, sortKey: CREATED_AT, reverse: true) {
+        edges {
+          node {
+            id
+            name
+            createdAt
+            totalPriceSet {
+              shopMoney {
+                amount
               }
-              lineItems(first: 10) {
-                edges {
-                  node {
-                    title
-                    product {
-                      id
-                      productType
-                    }
+            }
+            lineItems(first: 10) {
+              edges {
+                node {
+                  title
+                  product {
+                    id
+                    productType
                   }
                 }
               }
-              fulfillments {
-                id
-                status
-                displayStatus
-                trackingInfo {
-                  number
-                  company
-                }
+            }
+            fulfillments {
+              id
+              status
+              displayStatus
+              trackingInfo {
+                number
+                company
               }
             }
           }
         }
-      }`,
-      { variables: { cursor } }
-    );
+      }
+    }
+  `);
 
-    const responseJson = await response.json();
-    const ordersPage = responseJson.data.orders;
+  const responseJson = await response.json();
+  let rawOrders = responseJson.data.orders.edges.map((edge) => edge.node);
 
-    allOrders = allOrders.concat(ordersPage.edges.map((edge) => edge.node));
-    hasNextPage = ordersPage.pageInfo.hasNextPage;
-    cursor = ordersPage.pageInfo.endCursor;
-  }
 
-  const enhancedOrders = allOrders.map((order) => {
+
+  const enhancedOrders = rawOrders.map((order) => {
     let orderDeliveryStatus = 'unknown';
 
     if (order.fulfillments && order.fulfillments.length > 0) {
@@ -135,9 +122,10 @@ export const loader = async ({ request }) => {
     return { ...order, orderDeliveryStatus };
   });
 
+
+
   return enhancedOrders;
 };
-
 
 const CustomTooltip = ({ active, payload, total }) => {
   if (active && payload && payload.length) {
