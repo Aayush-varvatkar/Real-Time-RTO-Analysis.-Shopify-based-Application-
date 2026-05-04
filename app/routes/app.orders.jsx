@@ -39,68 +39,80 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
 
+  // Paginated fetch — collects ALL orders across multiple 250-item pages
+  let allRawOrders = [];
+  let hasNextPage = true;
+  let cursor = null;
 
-
-  const response = await admin.graphql(`
-    #graphql
-    query getOrdersWithTracking {
-      orders(first: 250, sortKey: CREATED_AT, reverse: true) {
-        edges {
-          node {
-            id
-            name
-            createdAt
-            customer {
-              firstName
-              lastName
-            }
-            displayFinancialStatus
-            displayFulfillmentStatus
-            totalPriceSet {
-              shopMoney {
-                amount
-                currencyCode
+  while (hasNextPage) {
+    const response = await admin.graphql(
+      `#graphql
+      query getOrdersWithTracking($cursor: String) {
+        orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          edges {
+            node {
+              id
+              name
+              createdAt
+              customer {
+                firstName
+                lastName
               }
-            }
-            shippingAddress {
-              city
-              province
-              zip
-            }
-            lineItems(first: 10) {
-              edges {
-                node {
-                  title
-                  quantity
-                  product {
-                    id
-                    productType
+              displayFinancialStatus
+              displayFulfillmentStatus
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              shippingAddress {
+                city
+                province
+                zip
+              }
+              lineItems(first: 10) {
+                edges {
+                  node {
+                    title
+                    quantity
+                    product {
+                      id
+                      productType
+                    }
                   }
                 }
               }
-            }
-            fulfillments {
-              id
-              status
-              displayStatus
-              trackingInfo {
-                number
-                url
-                company
+              fulfillments {
+                id
+                status
+                displayStatus
+                trackingInfo {
+                  number
+                  url
+                  company
+                }
               }
             }
           }
         }
-      }
-    }
-  `);
+      }`,
+      { variables: { cursor } }
+    );
 
-  const responseJson = await response.json();
-  let rawOrders = responseJson.data.orders.edges.map((edge) => edge.node);
+    const json = await response.json();
+    const ordersPage = json.data.orders;
 
+    allRawOrders.push(...ordersPage.edges.map((edge) => edge.node));
+    hasNextPage = ordersPage.pageInfo.hasNextPage;
+    cursor = ordersPage.pageInfo.endCursor;
+  }
 
-
-  const enhancedOrders = rawOrders.map((order) => {
+  const enhancedOrders = allRawOrders.map((order) => {
     let orderDeliveryStatus = 'unknown';
 
     // Normalize address fields
@@ -128,8 +140,6 @@ export const loader = async ({ request }) => {
     }
     return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
   });
-
-
 
   return enhancedOrders;
 };
