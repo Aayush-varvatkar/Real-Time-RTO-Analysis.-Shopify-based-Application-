@@ -16,7 +16,7 @@ import {
   Divider,
   Select,
 } from '@shopify/polaris';
-import { CalendarIcon, FilterIcon } from '@shopify/polaris-icons';
+import { CalendarIcon, FilterIcon, ExportIcon } from '@shopify/polaris-icons';
 import '@shopify/polaris/build/esm/styles.css';
 import enTranslations from '@shopify/polaris/locales/en.json';
 
@@ -325,6 +325,76 @@ export default function Orders() {
     });
   }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter]);
 
+  const handleExportCSV = useCallback(() => {
+    const headers = [
+      'Order',
+      'Customer',
+      'Items',
+      'Tracking Status',
+      'Fulfillment Status',
+      'Amount (Rs.)',
+      'Payment Status',
+      'City',
+      'State',
+      'Pincode',
+      'Order Date',
+    ];
+
+    const rows = filteredOrders.map(order => {
+      const customerName = order.customer
+        ? `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim() || 'No Customer'
+        : 'No Customer';
+
+      const items = order.lineItems?.edges
+        ?.map(e => `${e.node.title} x${e.node.quantity}`)
+        .join(' | ') || '';
+
+      let trackingStatus = 'N/A';
+      if (order.fulfillments && order.fulfillments.length > 0) {
+        const f = order.fulfillments[0];
+        if (f.trackingInfo && f.trackingInfo.length > 0) {
+          trackingStatus = f.trackingInfo[0].courierDeliveryStatus || 'in_transit';
+        } else {
+          trackingStatus = normalizeDeliveryStatus(f.displayStatus || f.status);
+        }
+      }
+
+      const orderDate = new Date(order.createdAt).toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+
+      // Escape commas/quotes in cell values
+      const escape = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+      return [
+        escape(order.name),
+        escape(customerName),
+        escape(items),
+        escape(trackingStatus),
+        escape(order.displayFulfillmentStatus || 'UNFULFILLED'),
+        escape(order.totalPriceSet?.shopMoney?.amount || '0.00'),
+        escape(order.displayFinancialStatus || 'N/A'),
+        escape(order.shippingCity || ''),
+        escape(order.shippingState || ''),
+        escape(order.shippingPincode || ''),
+        escape(orderDate),
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.setAttribute('download', `orders_export_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [filteredOrders]);
+
   const handleDateSelection = useCallback(
     (value) => {
       setSelectedDates(value);
@@ -446,7 +516,20 @@ export default function Orders() {
   return (
     <AppProvider i18n={enTranslations}>
       <div style={{ padding: "2rem" }}>
-        <Page title="Orders" fullWidth>
+        <Page
+            title="Orders"
+            fullWidth
+            primaryAction={
+              <Button
+                icon={ExportIcon}
+                variant="primary"
+                onClick={handleExportCSV}
+                disabled={filteredOrders.length === 0}
+              >
+                Export CSV ({filteredOrders.length})
+              </Button>
+            }
+          >
           <BlockStack gap="400">
             <InlineStack gap="400" blockAlign="center" wrap={false}>
               <Popover active={datePopoverActive} activator={dateButton} autofocusTarget="none" onClose={toggleDatePopover} fluidContent>

@@ -62,6 +62,7 @@ export const loader = async ({ request }) => {
             id
             name
             createdAt
+            displayFulfillmentStatus
             totalPriceSet {
               shopMoney {
                 amount
@@ -360,8 +361,12 @@ export default function Index() {
     let shipped = 0;
     let fulfilled = 0;
     let failed = 0;
+    let unfulfilled = 0;
 
     filteredOrders.forEach(order => {
+      const status = (order.displayFulfillmentStatus || '').toLowerCase();
+      if (status !== 'fulfilled') unfulfilled++;
+
       if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
         fulfilled++;
       } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
@@ -378,7 +383,8 @@ export default function Index() {
       pending,
       shipped,
       fulfilled,
-      failed
+      failed,
+      unfulfilled
     };
   }, [filteredOrders]);
 
@@ -426,24 +432,31 @@ export default function Index() {
     let delivered = 0;
     let rto = 0;
     let inTransit = 0;
-    let outForDelivery = 0;
+    let unfulfilled = 0;
 
     filteredOrders.forEach(order => {
-      const status = order.orderDeliveryStatus;
-      if (status === 'delivered') delivered++;
-      else if (status === 'rto_failed') rto++;
-      else if (status === 'out_for_delivery') outForDelivery++;
-      else if (status === 'in_transit') inTransit++;
-      else if (status === 'fulfilled') delivered++;
+      const deliveryStatus = order.orderDeliveryStatus;
+      const fulfillStatus = (order.displayFulfillmentStatus || '').toLowerCase();
+
+      if (deliveryStatus === 'delivered' || deliveryStatus === 'fulfilled') {
+        delivered++;
+      } else if (deliveryStatus === 'rto_failed') {
+        rto++;
+      } else if (deliveryStatus === 'in_transit' || deliveryStatus === 'out_for_delivery') {
+        inTransit++;
+      }
+
+      if (fulfillStatus !== 'fulfilled') {
+        unfulfilled++;
+      }
     });
 
-    const data = [];
-    if (delivered > 0) data.push({ name: 'Delivered', value: delivered, color: '#d5f5e3' });
-    if (outForDelivery > 0) data.push({ name: 'NDR', value: outForDelivery, color: '#8ed4ce' });
-    if (inTransit > 0) data.push({ name: 'Manifested', value: inTransit, color: '#00a896' });
-    if (rto > 0) data.push({ name: 'RTO', value: rto, color: '#059669' });
-
-    return data;
+    return [
+      { name: 'Delivered',   value: delivered,   color: '#059669' },
+      { name: 'RTO',         value: rto,         color: '#ef4444' },
+      { name: 'In-Transit',  value: inTransit,   color: '#00a896' },
+      { name: 'Unfulfilled', value: unfulfilled, color: '#f59e0b' },
+    ].filter(d => d.value > 0);
   }, [filteredOrders]);
 
   const handleDateSelection = useCallback(
@@ -523,7 +536,7 @@ export default function Index() {
   ];
 
   const styles = {
-    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginTop: "32px", marginBottom: "32px" },
+    grid: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginTop: "32px", marginBottom: "32px" },
     card: {
       backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: "8px",
       boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
@@ -697,6 +710,12 @@ export default function Index() {
                   <h3 style={styles.cardTitle}>Failed</h3>
                 </div>
                 <p style={styles.cardValue}>{metrics.failed}</p>
+              </div>
+              <div style={styles.card}>
+                <div style={styles.cardTitleOuter}>
+                  <h3 style={styles.cardTitle}>Unfulfilled</h3>
+                </div>
+                <p style={styles.cardValue}>{metrics.unfulfilled}</p>
               </div>
             </div>
 
