@@ -62,6 +62,11 @@ export const loader = async ({ request }) => {
                 currencyCode
               }
             }
+            shippingAddress {
+              city
+              province
+              zip
+            }
             lineItems(first: 10) {
               edges {
                 node {
@@ -98,6 +103,11 @@ export const loader = async ({ request }) => {
   const enhancedOrders = rawOrders.map((order) => {
     let orderDeliveryStatus = 'unknown';
 
+    // Normalize address fields
+    const shippingCity = (order.shippingAddress?.city || '').trim();
+    const shippingState = (order.shippingAddress?.province || '').trim();
+    const shippingPincode = (order.shippingAddress?.zip || '').trim();
+
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
@@ -114,9 +124,9 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus };
+      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
     }
-    return { ...order, orderDeliveryStatus };
+    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
   });
 
 
@@ -206,6 +216,19 @@ export default function Orders() {
   const toggleDeliveryStatusPopover = useCallback(() => setDeliveryStatusPopoverActive((active) => !active), []);
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("All Statuses");
 
+  // State / City / Pincode Filter State
+  const [statePopoverActive, setStatePopoverActive] = useState(false);
+  const toggleStatePopover = useCallback(() => setStatePopoverActive((a) => !a), []);
+  const [stateFilter, setStateFilter] = useState("All States");
+
+  const [cityPopoverActive, setCityPopoverActive] = useState(false);
+  const toggleCityPopover = useCallback(() => setCityPopoverActive((a) => !a), []);
+  const [cityFilter, setCityFilter] = useState("All Cities");
+
+  const [pincodePopoverActive, setPincodePopoverActive] = useState(false);
+  const togglePincodePopover = useCallback(() => setPincodePopoverActive((a) => !a), []);
+  const [pincodeFilter, setPincodeFilter] = useState("All Pincodes");
+
   const uniqueProducts = useMemo(() => {
     const titles = new Set();
     orders.forEach(order => {
@@ -218,6 +241,33 @@ export default function Orders() {
     });
     return Array.from(titles).sort();
   }, [orders]);
+
+  // Unique states, cities, pincodes (cascading)
+  const uniqueStates = useMemo(() => {
+    const vals = new Set();
+    orders.forEach(o => { if (o.shippingState) vals.add(o.shippingState); });
+    return Array.from(vals).sort();
+  }, [orders]);
+
+  const uniqueCities = useMemo(() => {
+    const vals = new Set();
+    orders.forEach(o => {
+      if (stateFilter === "All States" || o.shippingState === stateFilter) {
+        if (o.shippingCity) vals.add(o.shippingCity);
+      }
+    });
+    return Array.from(vals).sort();
+  }, [orders, stateFilter]);
+
+  const uniquePincodes = useMemo(() => {
+    const vals = new Set();
+    orders.forEach(o => {
+      const stateMatch = stateFilter === "All States" || o.shippingState === stateFilter;
+      const cityMatch = cityFilter === "All Cities" || o.shippingCity === cityFilter;
+      if (stateMatch && cityMatch && o.shippingPincode) vals.add(o.shippingPincode);
+    });
+    return Array.from(vals).sort();
+  }, [orders, stateFilter, cityFilter]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
@@ -256,9 +306,24 @@ export default function Orders() {
         if (!statusMatches) return false;
       }
 
+      // 4. State Filter
+      if (stateFilter !== "All States") {
+        if (order.shippingState !== stateFilter) return false;
+      }
+
+      // 5. City Filter
+      if (cityFilter !== "All Cities") {
+        if (order.shippingCity !== cityFilter) return false;
+      }
+
+      // 6. Pincode Filter
+      if (pincodeFilter !== "All Pincodes") {
+        if (order.shippingPincode !== pincodeFilter) return false;
+      }
+
       return true;
     });
-  }, [orders, selectedDates, productFilter, deliveryStatusFilter]);
+  }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter]);
 
   const handleDateSelection = useCallback(
     (value) => {
@@ -309,6 +374,31 @@ export default function Orders() {
     { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
     { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
     { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
+  ];
+
+  // State / City / Pincode action lists
+  const stateOptions = [
+    { content: "All States", onAction: () => { setStateFilter("All States"); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); } },
+    ...uniqueStates.map(s => ({
+      content: s,
+      onAction: () => { setStateFilter(s); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); }
+    }))
+  ];
+
+  const cityOptions = [
+    { content: "All Cities", onAction: () => { setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleCityPopover(); } },
+    ...uniqueCities.map(c => ({
+      content: c,
+      onAction: () => { setCityFilter(c); setPincodeFilter("All Pincodes"); toggleCityPopover(); }
+    }))
+  ];
+
+  const pincodeOptions = [
+    { content: "All Pincodes", onAction: () => { setPincodeFilter("All Pincodes"); togglePincodePopover(); } },
+    ...uniquePincodes.map(p => ({
+      content: p,
+      onAction: () => { setPincodeFilter(p); togglePincodePopover(); }
+    }))
   ];
 
   const getStatusBadge = (status) => {
@@ -399,6 +489,51 @@ export default function Orders() {
 
               <Popover active={deliveryStatusPopoverActive} activator={deliveryStatusActivator} onClose={toggleDeliveryStatusPopover}>
                 <div style={{ minWidth: "150px" }}><ActionList items={deliveryStatusOptions} /></div>
+              </Popover>
+
+              {/* State Filter */}
+              <Popover
+                active={statePopoverActive}
+                activator={
+                  <Button onClick={toggleStatePopover} icon={FilterIcon}>
+                    {stateFilter}
+                  </Button>
+                }
+                onClose={toggleStatePopover}
+              >
+                <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
+                  <ActionList items={stateOptions} />
+                </div>
+              </Popover>
+
+              {/* City Filter */}
+              <Popover
+                active={cityPopoverActive}
+                activator={
+                  <Button onClick={toggleCityPopover} icon={FilterIcon}>
+                    {cityFilter}
+                  </Button>
+                }
+                onClose={toggleCityPopover}
+              >
+                <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
+                  <ActionList items={cityOptions} />
+                </div>
+              </Popover>
+
+              {/* Pincode Filter */}
+              <Popover
+                active={pincodePopoverActive}
+                activator={
+                  <Button onClick={togglePincodePopover} icon={FilterIcon}>
+                    {pincodeFilter}
+                  </Button>
+                }
+                onClose={togglePincodePopover}
+              >
+                <div style={{ minWidth: "160px", maxHeight: "260px", overflowY: "auto" }}>
+                  <ActionList items={pincodeOptions} />
+                </div>
               </Popover>
             </InlineStack>
 
