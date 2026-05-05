@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "db29b5133308a461e1bd6793dd40050b"
-name = "test-plugin"
+client_id = "581d27169be5b359b888cda24fec4cf7"
+name = "RTO-Predictor"
 application_url = "https://shopify-test-plugin-hitech.up.railway.app"
 embedded = true
 
