@@ -61,7 +61,7 @@ export const loader = async ({ request }) => {
     const productResponse = await admin.graphql(
       `#graphql
       query getProducts($cursor: String) {
-        products(first: 250, after: $cursor) {
+        products(first: 250, after: $cursor, query: "status:active") {
           pageInfo {
             hasNextPage
             endCursor
