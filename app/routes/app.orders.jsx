@@ -22,7 +22,7 @@ import enTranslations from '@shopify/polaris/locales/en.json';
 
 function normalizeDeliveryStatus(fulfillmentStatus) {
   const statusLower = (fulfillmentStatus || '').toLowerCase();
-  
+
   // Explicitly catch failure states first
   if (statusLower.includes('rto') || statusLower.includes('return') || statusLower.includes('fail') || statusLower.includes('error') || statusLower.includes('canceled') || statusLower.includes('not_delivered')) {
     return 'RTO';
@@ -31,7 +31,7 @@ function normalizeDeliveryStatus(fulfillmentStatus) {
   } else if (statusLower.includes('out') && statusLower.includes('delivery')) {
     return 'out_for_delivery';
   }
-  
+
   return 'in_transit'; // Covers 'fulfilled', 'in_transit', 'pending', etc.
 }
 
@@ -507,7 +507,7 @@ export default function Orders() {
   const getStatusBadge = (status) => {
     let bgColor = "#f3f4f6";
     let textColor = "#374151";
-    
+
     if (status === "delivered") { bgColor = "#dcfce7"; textColor = "#166534"; }
     else if (status === "in_transit") { bgColor = "#dbeafe"; textColor = "#1e40af"; }
     else if (status === "out_for_delivery") { bgColor = "#fef08a"; textColor = "#854d0e"; }
@@ -525,7 +525,7 @@ export default function Orders() {
     let textColor = "#854d0e";
     const s = (status || "").toLowerCase();
     if (s === "fulfilled") { bgColor = "#dcfce7"; textColor = "#166534"; } // green for fulfilled
-    
+
     return (
       <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
         {status || "UNFULFILLED"}
@@ -538,7 +538,7 @@ export default function Orders() {
     let textColor = "#1e40af";
     const s = (status || "").toLowerCase();
     if (s === "paid") { bgColor = "#dcfce7"; textColor = "#166534"; }
-    
+
     return (
       <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
         {status || "N/A"}
@@ -550,19 +550,19 @@ export default function Orders() {
     <AppProvider i18n={enTranslations}>
       <div style={{ padding: "2rem" }}>
         <Page
-            title="Orders"
-            fullWidth
-            primaryAction={
-              <Button
-                icon={ExportIcon}
-                variant="primary"
-                onClick={handleExportCSV}
-                disabled={filteredOrders.length === 0}
-              >
-                Export CSV ({filteredOrders.length})
-              </Button>
-            }
-          >
+          title="Orders"
+          fullWidth
+          primaryAction={
+            <Button
+              icon={ExportIcon}
+              variant="primary"
+              onClick={handleExportCSV}
+              disabled={filteredOrders.length === 0}
+            >
+              Export CSV ({filteredOrders.length})
+            </Button>
+          }
+        >
           <BlockStack gap="400">
             <InlineStack gap="400" blockAlign="center" wrap={false}>
               <Popover active={datePopoverActive} activator={dateButton} autofocusTarget="none" onClose={toggleDatePopover} fluidContent>
@@ -659,13 +659,13 @@ export default function Orders() {
                   <colgroup>
                     <col style={{ width: "100px" }} />{/* Order */}
                     <col style={{ width: "110px" }} />{/* Order Date */}
-                    <col style={{ width: "130px" }} />{/* Customer */}
-                    <col style={{ width: "240px" }} />{/* Item */}
+                    <col style={{ width: "150px" }} />{/* Customer */}
+                    <col style={{ width: "260px" }} />{/* Item */}
                     <col style={{ width: "130px" }} />{/* Tracking Status */}
                     <col style={{ width: "120px" }} />{/* Fulfillment */}
                     <col style={{ width: "150px" }} />{/* Payment */}
                     <col style={{ width: "110px" }} />{/* State */}
-                    <col style={{ width: "110px" }} />{/* City */}
+                    <col style={{ width: "150px" }} />{/* City */}
                     <col style={{ width: "100px" }} />{/* Pincode */}
                   </colgroup>
                   <thead style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
@@ -688,7 +688,7 @@ export default function Orders() {
                     ) : (
                       filteredOrders.map((order, index) => {
                         const customerName = order.customer ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer" : "No Customer";
-                        
+
                         let trackingStatus = "N/A";
                         if (order.fulfillments && order.fulfillments.length > 0) {
                           const f = order.fulfillments[0];
