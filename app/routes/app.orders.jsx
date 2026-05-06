@@ -655,7 +655,19 @@ export default function Orders() {
 
             <div style={{ backgroundColor: "#fff", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: "16px" }}>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", tableLayout: "fixed" }}>
+                  <colgroup>
+                    <col style={{ width: "100px" }} />{/* Order */}
+                    <col style={{ width: "110px" }} />{/* Order Date */}
+                    <col style={{ width: "130px" }} />{/* Customer */}
+                    <col style={{ width: "240px" }} />{/* Item */}
+                    <col style={{ width: "130px" }} />{/* Tracking Status */}
+                    <col style={{ width: "120px" }} />{/* Fulfillment */}
+                    <col style={{ width: "150px" }} />{/* Payment */}
+                    <col style={{ width: "110px" }} />{/* State */}
+                    <col style={{ width: "110px" }} />{/* City */}
+                    <col style={{ width: "100px" }} />{/* Pincode */}
+                  </colgroup>
                   <thead style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                     <tr>
                       <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Order</th>
@@ -664,7 +676,7 @@ export default function Orders() {
                       <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Item</th>
                       <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Tracking Status</th>
                       <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Fulfillment</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Payment ( Rs. )</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151", textAlign: "center" }}>Payment ( Rs. )</th>
                       <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>State</th>
                       <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>City</th>
                       <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Pincode</th>
@@ -705,7 +717,7 @@ export default function Orders() {
                             </td>
                             <td style={{ padding: "16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
                             <td style={{ padding: "16px" }}>{getFulfillmentBadge(order.displayFulfillmentStatus)}</td>
-                            <td style={{ padding: "16px" }}>
+                            <td style={{ padding: "16px", textAlign: "center" }}>
                               <div style={{ marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "#111827" }}>
                                 {order.totalPriceSet?.shopMoney?.amount || '0.00'}
                               </div>
