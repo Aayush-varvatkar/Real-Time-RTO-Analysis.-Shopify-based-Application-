@@ -39,7 +39,41 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  // Paginated fetch — collects ALL orders across multiple 250-item pages
+  // ── 1. Fetch all store products (paginated) ──────────────────────────────
+  let allStoreProducts = [];
+  let productHasNextPage = true;
+  let productCursor = null;
+
+  while (productHasNextPage) {
+    const productResponse = await admin.graphql(
+      `#graphql
+      query getProducts($cursor: String) {
+        products(first: 250, after: $cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          edges {
+            node {
+              id
+              title
+            }
+          }
+        }
+      }`,
+      { variables: { cursor: productCursor } }
+    );
+    const productJson = await productResponse.json();
+    const productsPage = productJson.data.products;
+    allStoreProducts.push(...productsPage.edges.map((e) => e.node.title));
+    productHasNextPage = productsPage.pageInfo.hasNextPage;
+    productCursor = productsPage.pageInfo.endCursor;
+  }
+
+  // Sort & deduplicate product titles
+  const storeProducts = [...new Set(allStoreProducts)].sort();
+
+  // ── 2. Fetch all orders (paginated) ─────────────────────────────────────
   let allRawOrders = [];
   let hasNextPage = true;
   let cursor = null;
@@ -141,11 +175,11 @@ export const loader = async ({ request }) => {
     return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
   });
 
-  return enhancedOrders;
+  return { orders: enhancedOrders, storeProducts };
 };
 
 export default function Orders() {
-  const orders = useLoaderData();
+  const { orders, storeProducts } = useLoaderData();
 
   const [datePopoverActive, setDatePopoverActive] = useState(false);
   const toggleDatePopover = useCallback(() => setDatePopoverActive((active) => !active), []);
@@ -239,18 +273,8 @@ export default function Orders() {
   const togglePincodePopover = useCallback(() => setPincodePopoverActive((a) => !a), []);
   const [pincodeFilter, setPincodeFilter] = useState("All Pincodes");
 
-  const uniqueProducts = useMemo(() => {
-    const titles = new Set();
-    orders.forEach(order => {
-      order.lineItems?.edges?.forEach(item => {
-        const title = item.node.title;
-        if (title && title.trim() !== '') {
-          titles.add(title.trim());
-        }
-      });
-    });
-    return Array.from(titles).sort();
-  }, [orders]);
+  // Use store products directly (from loader) — only real catalog products appear here
+  const uniqueProducts = useMemo(() => storeProducts, [storeProducts]);
 
   // Unique states, cities, pincodes (cascading)
   const uniqueStates = useMemo(() => {

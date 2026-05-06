@@ -52,7 +52,41 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  // Paginated fetch — collects ALL orders across multiple 250-item pages
+  // ── 1. Fetch all store products (paginated) ──────────────────────────────
+  let allStoreProducts = [];
+  let productHasNextPage = true;
+  let productCursor = null;
+
+  while (productHasNextPage) {
+    const productResponse = await admin.graphql(
+      `#graphql
+      query getProducts($cursor: String) {
+        products(first: 250, after: $cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          edges {
+            node {
+              id
+              title
+            }
+          }
+        }
+      }`,
+      { variables: { cursor: productCursor } }
+    );
+    const productJson = await productResponse.json();
+    const productsPage = productJson.data.products;
+    allStoreProducts.push(...productsPage.edges.map((e) => e.node.title));
+    productHasNextPage = productsPage.pageInfo.hasNextPage;
+    productCursor = productsPage.pageInfo.endCursor;
+  }
+
+  // Sort & deduplicate product titles
+  const storeProducts = [...new Set(allStoreProducts)].sort();
+
+  // ── 2. Fetch all orders (paginated) ─────────────────────────────────────
   let allRawOrders = [];
   let hasNextPage = true;
   let cursor = null;
@@ -146,7 +180,7 @@ export const loader = async ({ request }) => {
     return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
   });
 
-  return enhancedOrders;
+  return { orders: enhancedOrders, storeProducts };
 };
 
 const CustomTooltip = ({ active, payload, total }) => {
@@ -165,7 +199,7 @@ const CustomTooltip = ({ active, payload, total }) => {
 };
 
 export default function Index() {
-  const orders = useLoaderData() || [];
+  const { orders = [], storeProducts = [] } = useLoaderData() || {};
 
   // Pie Chart Hover State
   const [pieActiveIndex, setPieActiveIndex] = useState(null);
@@ -267,19 +301,8 @@ export default function Index() {
   const togglePincodePopover = useCallback(() => setPincodePopoverActive((a) => !a), []);
   const [pincodeFilter, setPincodeFilter] = useState("All Pincodes");
 
-  // Extract unique product titles
-  const uniqueProducts = useMemo(() => {
-    const titles = new Set();
-    orders.forEach(order => {
-      order.lineItems?.edges?.forEach(item => {
-        const title = item.node.title;
-        if (title && title.trim() !== '') {
-          titles.add(title.trim());
-        }
-      });
-    });
-    return Array.from(titles).sort();
-  }, [orders]);
+  // Use store products directly (from loader) — only real catalog products appear here
+  const uniqueProducts = useMemo(() => storeProducts, [storeProducts]);
 
   // Extract unique states, cities, pincodes from ALL orders (unfiltered)
   const uniqueStates = useMemo(() => {
@@ -443,11 +466,9 @@ export default function Index() {
     let delivered = 0;
     let rto = 0;
     let inTransit = 0;
-    let unfulfilled = 0;
 
     filteredOrders.forEach(order => {
       const deliveryStatus = order.orderDeliveryStatus;
-      const fulfillStatus = (order.displayFulfillmentStatus || '').toLowerCase();
 
       if (deliveryStatus === 'delivered' || deliveryStatus === 'fulfilled') {
         delivered++;
@@ -456,17 +477,12 @@ export default function Index() {
       } else if (deliveryStatus === 'in_transit' || deliveryStatus === 'out_for_delivery') {
         inTransit++;
       }
-
-      if (fulfillStatus !== 'fulfilled') {
-        unfulfilled++;
-      }
     });
 
     return [
-      { name: 'Delivered',   value: delivered,   color: '#059669' },
-      { name: 'RTO',         value: rto,         color: '#ef4444' },
-      { name: 'In-Transit',  value: inTransit,   color: '#00a896' },
-      { name: 'Unfulfilled', value: unfulfilled, color: '#f59e0b' },
+      { name: 'Delivered',  value: delivered, color: '#059669' },
+      { name: 'RTO',        value: rto,       color: '#ef4444' },
+      { name: 'In-Transit', value: inTransit, color: '#00a896' },
     ].filter(d => d.value > 0);
   }, [filteredOrders]);
 
