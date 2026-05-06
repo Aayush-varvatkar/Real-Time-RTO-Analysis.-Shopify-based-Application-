@@ -655,19 +655,19 @@ export default function Orders() {
 
             <div style={{ backgroundColor: "#fff", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: "16px" }}>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", minWidth: "1100px", borderCollapse: "collapse", textAlign: "left" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                   <thead style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                     <tr>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>Order</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>Order Date</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>Customer</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>Item</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>Tracking Status</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>Fulfillment</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>Payment (Rs.)</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>State</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>City</th>
-                      <th style={{ padding: "14px 16px", fontSize: "13px", fontWeight: "600", color: "#374151", whiteSpace: "nowrap" }}>Pincode</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Order</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Order Date</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Customer</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Item</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Tracking Status</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Fulfillment</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Payment ( Rs. )</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>State</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>City</th>
+                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Pincode</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -693,27 +693,27 @@ export default function Orders() {
 
                         return (
                           <tr key={order.id} style={{ borderBottom: "1px solid #f3f4f6", backgroundColor: index % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
-                            <td style={{ padding: "14px 16px", fontSize: "14px", color: "#111827", fontWeight: "500", whiteSpace: "nowrap" }}>{order.name}</td>
-                            <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563", whiteSpace: "nowrap" }}>{orderDate}</td>
-                            <td style={{ padding: "14px 16px", fontSize: "14px", color: "#4b5563", whiteSpace: "nowrap" }}>{customerName}</td>
-                            <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563" }}>
+                            <td style={{ padding: "16px", fontSize: "14px", color: "#111827", fontWeight: "500", whiteSpace: "nowrap" }}>{order.name}</td>
+                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563", whiteSpace: "nowrap" }}>{orderDate}</td>
+                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{customerName}</td>
+                            <td style={{ padding: "16px", fontSize: "13px", color: "#4b5563" }}>
                               {order.lineItems?.edges?.map((edge, idx) => (
-                                <div key={idx} style={{ marginBottom: "4px", whiteSpace: "nowrap" }}>
+                                <div key={idx} style={{ marginBottom: "4px" }}>
                                   {edge.node.title} <strong>x {edge.node.quantity}</strong>
                                 </div>
                               ))}
                             </td>
-                            <td style={{ padding: "14px 16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
-                            <td style={{ padding: "14px 16px" }}>{getFulfillmentBadge(order.displayFulfillmentStatus)}</td>
-                            <td style={{ padding: "14px 16px" }}>
-                              <div style={{ marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "#111827", whiteSpace: "nowrap" }}>
+                            <td style={{ padding: "16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
+                            <td style={{ padding: "16px" }}>{getFulfillmentBadge(order.displayFulfillmentStatus)}</td>
+                            <td style={{ padding: "16px" }}>
+                              <div style={{ marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "#111827" }}>
                                 {order.totalPriceSet?.shopMoney?.amount || '0.00'}
                               </div>
                               {getPaymentBadge(order.displayFinancialStatus)}
                             </td>
-                            <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563", whiteSpace: "nowrap" }}>{order.shippingState || '-'}</td>
-                            <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563", whiteSpace: "nowrap" }}>{order.shippingCity || '-'}</td>
-                            <td style={{ padding: "14px 16px", fontSize: "13px", color: "#4b5563", whiteSpace: "nowrap" }}>{order.shippingPincode || '-'}</td>
+                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingState || '-'}</td>
+                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingCity || '-'}</td>
+                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingPincode || '-'}</td>
                           </tr>
                         );
                       })
