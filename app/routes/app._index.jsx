@@ -187,7 +187,7 @@ const CustomTooltip = ({ active, payload, total }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     const percent = total > 0 ? ((data.value / total) * 100).toFixed(1) : 0;
-    
+
     return (
       <div style={{ backgroundColor: '#fff', border: `1px solid ${data.color || '#e5e7eb'}`, padding: '8px 12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderRadius: '4px' }}>
         <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: '#111827' }}>{data.name}</p>
@@ -210,15 +210,18 @@ export default function Index() {
   const [datePopoverActive, setDatePopoverActive] = useState(false);
   const toggleDatePopover = useCallback(() => setDatePopoverActive((active) => !active), []);
 
-  const [selectedDates, setSelectedDates] = useState({
-    start: new Date(new Date().setDate(new Date().getDate() - 30)),
-    end: new Date(),
+  const [selectedDates, setSelectedDates] = useState(() => {
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setDate(end.getDate() - 29);
+    return { start, end };
   });
 
-  const [{ month, year }, setDate] = useState({
-    month: selectedDates.end.getMonth(),
-    year: selectedDates.end.getFullYear(),
-  });
+  const [{ month, year }, setDate] = useState(() => ({
+    month: new Date().getMonth(),
+    year: new Date().getFullYear(),
+  }));
 
   const [presetFilter, setPresetFilter] = useState('last30');
 
@@ -480,8 +483,8 @@ export default function Index() {
     });
 
     return [
-      { name: 'Delivered',  value: delivered, color: '#059669' },
-      { name: 'RTO',        value: rto,       color: '#ef4444' },
+      { name: 'Delivered', value: delivered, color: '#059669' },
+      { name: 'RTO', value: rto, color: '#ef4444' },
       { name: 'In-Transit', value: inTransit, color: '#00a896' },
     ].filter(d => d.value > 0);
   }, [filteredOrders]);
@@ -813,9 +816,9 @@ export default function Index() {
                       onMouseEnter={onPieEnter}
                     >
                       {trackingStatusData.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={entry.color} 
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.color}
                           opacity={pieActiveIndex === null || pieActiveIndex === index ? 1 : 0.3}
                           style={{ transition: 'opacity 0.2s ease-in-out' }}
                         />

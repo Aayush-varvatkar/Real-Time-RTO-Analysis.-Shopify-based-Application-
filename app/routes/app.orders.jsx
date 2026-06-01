@@ -184,15 +184,18 @@ export default function Orders() {
   const [datePopoverActive, setDatePopoverActive] = useState(false);
   const toggleDatePopover = useCallback(() => setDatePopoverActive((active) => !active), []);
 
-  const [selectedDates, setSelectedDates] = useState({
-    start: new Date(new Date().setDate(new Date().getDate() - 30)),
-    end: new Date(),
+  const [selectedDates, setSelectedDates] = useState(() => {
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setDate(end.getDate() - 29);
+    return { start, end };
   });
 
-  const [{ month, year }, setDate] = useState({
-    month: selectedDates.end.getMonth(),
-    year: selectedDates.end.getFullYear(),
-  });
+  const [{ month, year }, setDate] = useState(() => ({
+    month: new Date().getMonth(),
+    year: new Date().getFullYear(),
+  }));
 
   const [presetFilter, setPresetFilter] = useState('last30');
 
