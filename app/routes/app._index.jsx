@@ -283,9 +283,9 @@ function RtoCard({ title, label, data, fullWidth = false }) {
 
   // Pie always shows top-5 by current sorted order for clarity
   const pieData = sortedData.slice(0, 5);
-  const pieW    = fullWidth ? 210 : 190;
-  const innerR  = fullWidth ? 46  : 38;
-  const outerR  = fullWidth ? 72  : 60;
+  const pieW    = fullWidth ? 200 : 170;
+  const innerR  = fullWidth ? 50  : 42;
+  const outerR  = fullWidth ? 80  : 68;
   const pad     = fullWidth ? '10px 16px' : '10px 10px';
 
   return (
@@ -365,27 +365,16 @@ function RtoCard({ title, label, data, fullWidth = false }) {
           </div>
 
           {/* Pie chart side — always top-5 */}
-          <div style={{ width: fullWidth ? '240px' : '220px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
+          <div style={{ width: fullWidth ? '220px' : '180px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
             <ResponsiveContainer width={pieW} height={pieW}>
               <PieChart>
                 <Pie
-                  data={pieData.map(r => ({ name: r.name, value: r.rtoPct }))}
+                  data={pieData.map(r => ({ name: r.name, value: r.rto }))}
                   dataKey="value" nameKey="name"
-                  cx="50%" cy="50%"
-                  innerRadius={innerR} outerRadius={outerR}
-                  isAnimationActive={false}
-                  labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
-                  label={({ name, x, y, textAnchor }) => (
-                    <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central"
-                      fontSize="10" fontWeight="600" fill="#374151">
-                      {name.length > 10 ? name.slice(0, 9) + '…' : name}
-                    </text>
-                  )}
-                >
+                  cx="50%" cy="50%" innerRadius={innerR} outerRadius={outerR} isAnimationActive={false}>
                   {pieData.map((_, i) => <Cell key={i} fill={RTO_COLORS[i]} />)}
                 </Pie>
-                <Tooltip
-                  formatter={(v, n) => [`${v}%`, n]}
+                <Tooltip formatter={(value, name) => [`${value} RTO`, name]}
                   contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
                   wrapperStyle={{ outline: 'none' }} />
               </PieChart>
