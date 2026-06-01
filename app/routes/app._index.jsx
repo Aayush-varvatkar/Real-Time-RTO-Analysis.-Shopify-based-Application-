@@ -207,22 +207,85 @@ const CARD_PAGE    = 20;
 function RtoCard({ title, label, data, fullWidth = false }) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage]         = useState(0);
+  const [sortField, setSortField] = useState('rtoPct'); // Default RTO %
+  const [sortDir, setSortDir]     = useState('desc');   // Default descending
+
+  // Sort the full dataset based on active sort options
+  const sortedData = useMemo(() => {
+    return [...data].sort((a, b) => {
+      const valA = a[sortField] ?? 0;
+      const valB = b[sortField] ?? 0;
+      if (sortDir === 'desc') {
+        return valB - valA;
+      } else {
+        return valA - valB;
+      }
+    });
+  }, [data, sortField, sortDir]);
 
   // Rows to display: either top-5 or current page of full list
   const visibleRows = expanded
-    ? data.slice(page * CARD_PAGE, (page + 1) * CARD_PAGE)
-    : data.slice(0, CARD_DEFAULT);
+    ? sortedData.slice(page * CARD_PAGE, (page + 1) * CARD_PAGE)
+    : sortedData.slice(0, CARD_DEFAULT);
 
-  const totalPages = Math.ceil(data.length / CARD_PAGE);
-  const showPagination = expanded && data.length > CARD_PAGE;
+  const totalPages = Math.ceil(sortedData.length / CARD_PAGE);
+  const showPagination = expanded && sortedData.length > CARD_PAGE;
 
   const handleToggle = () => { setExpanded(e => !e); setPage(0); };
 
-  // Pie always shows top-5 by rtoPct for clarity
-  const pieData = data.slice(0, 5);
-  const pieW    = fullWidth ? 200 : 170;
-  const innerR  = fullWidth ? 50  : 42;
-  const outerR  = fullWidth ? 80  : 68;
+  // Sort handler that toggles direction if active, or sets new field to desc
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+    setPage(0);
+  };
+
+  // Helper to render sortable column header with single arrow
+  const renderSortHeader = (field, displayName) => {
+    const isActive = sortField === field;
+    const arrow = isActive ? (sortDir === 'desc' ? '^' : '˅') : '^';
+    return (
+      <th
+        style={{
+          padding: pad,
+          textAlign: 'center',
+          color: '#6b7280',
+          fontWeight: '600',
+          cursor: 'pointer',
+          userSelect: 'none',
+          transition: 'color 0.15s ease'
+        }}
+        onClick={() => handleSort(field)}
+        onMouseEnter={(e) => e.currentTarget.style.color = '#111827'}
+        onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+          {displayName}
+          <span
+            style={{
+              fontWeight: '800',
+              fontSize: '11px',
+              color: isActive ? '#6366f1' : '#d1d5db',
+              display: 'inline-block',
+              transition: 'transform 0.15s ease'
+            }}
+          >
+            {arrow}
+          </span>
+        </span>
+      </th>
+    );
+  };
+
+  // Pie always shows top-5 by current sorted order for clarity
+  const pieData = sortedData.slice(0, 5);
+  const pieW    = fullWidth ? 210 : 190;
+  const innerR  = fullWidth ? 46  : 38;
+  const outerR  = fullWidth ? 72  : 60;
   const pad     = fullWidth ? '10px 16px' : '10px 10px';
 
   return (
@@ -251,10 +314,10 @@ function RtoCard({ title, label, data, fullWidth = false }) {
                 <tr style={{ backgroundColor: '#f9fafb' }}>
                   <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '32px' }}>#</th>
                   <th style={{ padding: pad, textAlign: 'left',   color: '#6b7280', fontWeight: '600' }}>{label}</th>
-                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Total</th>
-                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
-                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
-                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO</th>
+                  {renderSortHeader('total', 'Total')}
+                  {renderSortHeader('rtoPct', 'RTO %')}
+                  {renderSortHeader('delivered', 'Delivered')}
+                  {renderSortHeader('rto', 'RTO')}
                 </tr>
               </thead>
               <tbody style={{ transition: 'opacity 0.15s ease' }}>
@@ -263,8 +326,8 @@ function RtoCard({ title, label, data, fullWidth = false }) {
                   const dot = RTO_COLORS[Math.min(globalIdx, RTO_COLORS.length - 1)];
                   return (
                     <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={{ padding: pad, textAlign: 'center' }}>
-                        <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: dot }} />
+                      <td style={{ padding: pad, textAlign: 'center', fontWeight: '700', fontSize: '13px', color: globalIdx < 5 ? RTO_COLORS[globalIdx] : '#9ca3af' }}>
+                        {globalIdx + 1}
                       </td>
                       <td style={{ padding: pad, color: '#111827', fontWeight: '500', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</td>
                       <td style={{ padding: pad, textAlign: 'center', color: '#374151', fontWeight: '600' }}>{row.total}</td>
@@ -302,14 +365,27 @@ function RtoCard({ title, label, data, fullWidth = false }) {
           </div>
 
           {/* Pie chart side — always top-5 */}
-          <div style={{ width: fullWidth ? '220px' : '180px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
+          <div style={{ width: fullWidth ? '240px' : '220px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
             <ResponsiveContainer width={pieW} height={pieW}>
               <PieChart>
-                <Pie data={pieData.map(r => ({ name: r.name, value: r.rto }))} dataKey="value" nameKey="name"
-                  cx="50%" cy="50%" innerRadius={innerR} outerRadius={outerR} isAnimationActive={false}>
+                <Pie
+                  data={pieData.map(r => ({ name: r.name, value: r.rtoPct }))}
+                  dataKey="value" nameKey="name"
+                  cx="50%" cy="50%"
+                  innerRadius={innerR} outerRadius={outerR}
+                  isAnimationActive={false}
+                  labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                  label={({ name, x, y, textAnchor }) => (
+                    <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central"
+                      fontSize="10" fontWeight="600" fill="#374151">
+                      {name.length > 10 ? name.slice(0, 9) + '…' : name}
+                    </text>
+                  )}
+                >
                   {pieData.map((_, i) => <Cell key={i} fill={RTO_COLORS[i]} />)}
                 </Pie>
-                <Tooltip formatter={(v, n) => [`${v} RTO`, n]}
+                <Tooltip
+                  formatter={(v, n) => [`${v}%`, n]}
                   contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
                   wrapperStyle={{ outline: 'none' }} />
               </PieChart>
