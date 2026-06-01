@@ -198,31 +198,8 @@ const CustomTooltip = ({ active, payload, total }) => {
   return null;
 };
 
-// Lightweight SVG donut chart for RTO percentage per row
-const MiniPieChart = ({ percentage }) => {
-  const r = 14;
-  const circ = 2 * Math.PI * r;
-  const filled = Math.min(100, Math.max(0, percentage));
-  const dash = (filled / 100) * circ;
-  const color = filled >= 50 ? '#ef4444' : filled >= 25 ? '#f59e0b' : '#10b981';
-  return (
-    <svg width="36" height="36" viewBox="0 0 36 36" style={{ display: 'block' }}>
-      <circle cx="18" cy="18" r={r} fill="none" stroke="#f3f4f6" strokeWidth="5" />
-      <circle
-        cx="18" cy="18" r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="5"
-        strokeDasharray={`${dash} ${circ - dash}`}
-        strokeDashoffset={circ / 4}
-        strokeLinecap="round"
-      />
-      <text x="18" y="22" textAnchor="middle" fontSize="7" fontWeight="700" fill={color}>
-        {Math.round(filled)}%
-      </text>
-    </svg>
-  );
-};
+// 5-color palette shared between card pie charts and table row dots
+const RTO_COLORS = ['#ef4444', '#f97316', '#eab308', '#8b5cf6', '#06b6d4'];
 
 
 export default function Index() {
@@ -541,7 +518,7 @@ export default function Index() {
         }))
         .filter(d => d.rto > 0)
         .sort((a, b) => b.rto - a.rto || b.rtoPct - a.rtoPct)
-        .slice(0, 10);
+        .slice(0, 5);
     };
 
     return {
@@ -916,35 +893,64 @@ export default function Index() {
                     {data.length === 0 ? (
                       <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No RTO orders in selected period</div>
                     ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                          <thead>
-                            <tr style={{ backgroundColor: '#f9fafb' }}>
-                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '36px' }}>#</th>
-                              <th style={{ padding: '10px 12px', textAlign: 'left',   color: '#6b7280', fontWeight: '600' }}>{label}</th>
-                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
-                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
-                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO Orders</th>
-                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Chart</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {data.map((row, i) => (
-                              <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9ca3af', fontWeight: '600' }}>{i + 1}</td>
-                                <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '500' }}>{row.name}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                                  <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '12px' }}>
-                                    {row.rtoPct}%
-                                  </span>
-                                </td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
-                                <td style={{ padding: '10px 12px', textAlign: 'center' }}><MiniPieChart percentage={row.rtoPct} /></td>
+                      <div style={{ display: 'flex', gap: '0', alignItems: 'stretch' }}>
+                        {/* Table */}
+                        <div style={{ flex: 1, overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#f9fafb' }}>
+                                <th style={{ padding: '10px 10px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '32px' }}>#</th>
+                                <th style={{ padding: '10px 10px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>{label}</th>
+                                <th style={{ padding: '10px 10px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
+                                <th style={{ padding: '10px 10px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
+                                <th style={{ padding: '10px 10px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {data.map((row, i) => (
+                                <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                  <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                                    <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: RTO_COLORS[i] }} />
+                                  </td>
+                                  <td style={{ padding: '10px 10px', color: '#111827', fontWeight: '500', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</td>
+                                  <td style={{ padding: '10px 10px', textAlign: 'center' }}>
+                                    <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 7px', borderRadius: '99px', fontWeight: '700', fontSize: '11px' }}>
+                                      {row.rtoPct}%
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '10px 10px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
+                                  <td style={{ padding: '10px 10px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {/* Card-level Pie Chart */}
+                        <div style={{ width: '180px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
+                          <ResponsiveContainer width={170} height={170}>
+                            <PieChart>
+                              <Pie
+                                data={data.map(r => ({ name: r.name, value: r.rto }))}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={42}
+                                outerRadius={68}
+                                isAnimationActive={false}
+                              >
+                                {data.map((_, i) => (
+                                  <Cell key={i} fill={RTO_COLORS[i]} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                formatter={(value, name) => [`${value} RTO`, name]}
+                                contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+                                wrapperStyle={{ outline: 'none' }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -959,35 +965,64 @@ export default function Index() {
                 {rtoAnalysis.customers.length === 0 ? (
                   <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No RTO orders with customer data in selected period</div>
                 ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                      <thead>
-                        <tr style={{ backgroundColor: '#f9fafb' }}>
-                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '40px' }}>#</th>
-                          <th style={{ padding: '10px 16px', textAlign: 'left',   color: '#6b7280', fontWeight: '600' }}>Customer</th>
-                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
-                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
-                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO Orders</th>
-                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Chart</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rtoAnalysis.customers.map((row, i) => (
-                          <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                            <td style={{ padding: '10px 16px', textAlign: 'center', color: '#9ca3af', fontWeight: '600' }}>{i + 1}</td>
-                            <td style={{ padding: '10px 16px', color: '#111827', fontWeight: '500' }}>{row.name}</td>
-                            <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                              <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '12px' }}>
-                                {row.rtoPct}%
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px 16px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
-                            <td style={{ padding: '10px 16px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
-                            <td style={{ padding: '10px 16px', textAlign: 'center' }}><MiniPieChart percentage={row.rtoPct} /></td>
+                  <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                    {/* Table */}
+                    <div style={{ flex: 1, overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#f9fafb' }}>
+                            <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '36px' }}>#</th>
+                            <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>Customer</th>
+                            <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
+                            <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
+                            <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO Orders</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {rtoAnalysis.customers.map((row, i) => (
+                            <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                              <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: RTO_COLORS[i] }} />
+                              </td>
+                              <td style={{ padding: '10px 16px', color: '#111827', fontWeight: '500' }}>{row.name}</td>
+                              <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                                <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '12px' }}>
+                                  {row.rtoPct}%
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 16px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
+                              <td style={{ padding: '10px 16px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Card-level Pie Chart */}
+                    <div style={{ width: '220px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
+                      <ResponsiveContainer width={200} height={200}>
+                        <PieChart>
+                          <Pie
+                            data={rtoAnalysis.customers.map(r => ({ name: r.name, value: r.rto }))}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={80}
+                            isAnimationActive={false}
+                          >
+                            {rtoAnalysis.customers.map((_, i) => (
+                              <Cell key={i} fill={RTO_COLORS[i]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value, name) => [`${value} RTO`, name]}
+                            contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+                            wrapperStyle={{ outline: 'none' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 )}
               </div>
