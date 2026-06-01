@@ -517,7 +517,7 @@ export default function Index() {
           rtoPct: d.total > 0 ? +((d.rto / d.total) * 100).toFixed(1) : 0,
         }))
         .filter(d => d.rto > 0)
-        .sort((a, b) => b.rto - a.rto || b.rtoPct - a.rtoPct)
+        .sort((a, b) => b.rtoPct - a.rtoPct || b.rto - a.rto)
         .slice(0, 5);
     };
 
