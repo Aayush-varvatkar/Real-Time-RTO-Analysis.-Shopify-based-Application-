@@ -198,13 +198,37 @@ const CustomTooltip = ({ active, payload, total }) => {
   return null;
 };
 
+// Lightweight SVG donut chart for RTO percentage per row
+const MiniPieChart = ({ percentage }) => {
+  const r = 14;
+  const circ = 2 * Math.PI * r;
+  const filled = Math.min(100, Math.max(0, percentage));
+  const dash = (filled / 100) * circ;
+  const color = filled >= 50 ? '#ef4444' : filled >= 25 ? '#f59e0b' : '#10b981';
+  return (
+    <svg width="36" height="36" viewBox="0 0 36 36" style={{ display: 'block' }}>
+      <circle cx="18" cy="18" r={r} fill="none" stroke="#f3f4f6" strokeWidth="5" />
+      <circle
+        cx="18" cy="18" r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="5"
+        strokeDasharray={`${dash} ${circ - dash}`}
+        strokeDashoffset={circ / 4}
+        strokeLinecap="round"
+      />
+      <text x="18" y="22" textAnchor="middle" fontSize="7" fontWeight="700" fill={color}>
+        {Math.round(filled)}%
+      </text>
+    </svg>
+  );
+};
+
+
 export default function Index() {
   const { orders = [], storeProducts = [] } = useLoaderData() || {};
 
-  // Pie Chart Hover State
-  const [pieActiveIndex, setPieActiveIndex] = useState(null);
-  const onPieEnter = useCallback((_, index) => setPieActiveIndex(index), []);
-  const onPieLeave = useCallback(() => setPieActiveIndex(null), []);
+
 
   // Date Picker State
   const [datePopoverActive, setDatePopoverActive] = useState(false);
@@ -487,6 +511,50 @@ export default function Index() {
       { name: 'RTO', value: rto, color: '#ef4444' },
       { name: 'In-Transit', value: inTransit, color: '#00a896' },
     ].filter(d => d.value > 0);
+  }, [filteredOrders]);
+
+  // Memoized pie total — stable reference prevents Tooltip from remounting on every hover
+  const pieTotal = useMemo(() => trackingStatusData.reduce((sum, item) => sum + item.value, 0), [trackingStatusData]);
+
+  // ── RTO Analysis (date + product filters already applied via filteredOrders) ──
+  const rtoAnalysis = useMemo(() => {
+    const groupBy = (keyFn) => {
+      const map = {};
+      filteredOrders.forEach(order => {
+        const key = keyFn(order);
+        if (!key) return;
+        if (!map[key]) map[key] = { delivered: 0, rto: 0, total: 0 };
+        map[key].total++;
+        if (order.orderDeliveryStatus === 'rto_failed') {
+          map[key].rto++;
+        } else if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
+          map[key].delivered++;
+        }
+      });
+      return Object.entries(map)
+        .map(([name, d]) => ({
+          name,
+          delivered: d.delivered,
+          rto: d.rto,
+          total: d.total,
+          rtoPct: d.total > 0 ? +((d.rto / d.total) * 100).toFixed(1) : 0,
+        }))
+        .filter(d => d.rto > 0)
+        .sort((a, b) => b.rto - a.rto || b.rtoPct - a.rtoPct)
+        .slice(0, 10);
+    };
+
+    return {
+      states:    groupBy(o => o.shippingState || null),
+      cities:    groupBy(o => o.shippingCity   || null),
+      pincodes:  groupBy(o => o.shippingPincode || null),
+      couriers:  groupBy(o => o.fulfillments?.[0]?.trackingInfo?.[0]?.company || null),
+      customers: groupBy(o => {
+        if (!o.customer) return null;
+        const n = `${o.customer.firstName || ''} ${o.customer.lastName || ''}`.trim();
+        return n || null;
+      }),
+    };
   }, [filteredOrders]);
 
   const handleDateSelection = useCallback(
@@ -799,7 +867,7 @@ export default function Index() {
               </div>
               <div style={{ width: '100%', height: 400, marginTop: '20px' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart onMouseLeave={onPieLeave}>
+                  <PieChart>
                     <Pie
                       data={trackingStatusData}
                       dataKey="value"
@@ -807,28 +875,124 @@ export default function Index() {
                       cx="50%"
                       cy="50%"
                       outerRadius={140}
+                      isAnimationActive={false}
                       labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
                       label={({ name, value, x, y, textAnchor }) => (
                         <text x={x} y={y} fill="#111827" fontSize="13" fontWeight="600" textAnchor={textAnchor} dominantBaseline="central">
                           {name} : {value}
                         </text>
                       )}
-                      onMouseEnter={onPieEnter}
                     >
                       {trackingStatusData.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
                           fill={entry.color}
-                          opacity={pieActiveIndex === null || pieActiveIndex === index ? 1 : 0.3}
-                          style={{ transition: 'opacity 0.2s ease-in-out' }}
                         />
                       ))}
                     </Pie>
-                    <Tooltip content={<CustomTooltip total={trackingStatusData.reduce((sum, item) => sum + item.value, 0)} />} />
+                    <Tooltip
+                      content={<CustomTooltip total={pieTotal} />}
+                      wrapperStyle={{ outline: 'none' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {/* ── RTO Analysis Cards ── */}
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '20px', letterSpacing: '-0.3px' }}>RTO Analysis</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
+                {[
+                  { title: '🏙️ Top RTO States',   data: rtoAnalysis.states,    label: 'State' },
+                  { title: '🌆 Top RTO Cities',   data: rtoAnalysis.cities,    label: 'City' },
+                  { title: '📮 Top RTO Pincodes', data: rtoAnalysis.pincodes,  label: 'Pincode' },
+                  { title: '🚚 Top RTO Couriers', data: rtoAnalysis.couriers,  label: 'Courier' },
+                ].map(({ title, data, label }) => (
+                  <div key={title} style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', backgroundColor: '#fafafa' }}>
+                      <span style={{ fontSize: '15px', fontWeight: '700', color: '#111827' }}>{title}</span>
+                    </div>
+                    {data.length === 0 ? (
+                      <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No RTO orders in selected period</div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <thead>
+                            <tr style={{ backgroundColor: '#f9fafb' }}>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '36px' }}>#</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'left',   color: '#6b7280', fontWeight: '600' }}>{label}</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO Orders</th>
+                              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Chart</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.map((row, i) => (
+                              <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9ca3af', fontWeight: '600' }}>{i + 1}</td>
+                                <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '500' }}>{row.name}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                  <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '12px' }}>
+                                    {row.rtoPct}%
+                                  </span>
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
+                                <td style={{ padding: '10px 12px', textAlign: 'center' }}><MiniPieChart percentage={row.rtoPct} /></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Top RTO Customers — full width */}
+              <div style={{ marginTop: '20px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', backgroundColor: '#fafafa' }}>
+                  <span style={{ fontSize: '15px', fontWeight: '700', color: '#111827' }}>👤 Top RTO Customers</span>
+                </div>
+                {rtoAnalysis.customers.length === 0 ? (
+                  <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No RTO orders with customer data in selected period</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f9fafb' }}>
+                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '40px' }}>#</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'left',   color: '#6b7280', fontWeight: '600' }}>Customer</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO Orders</th>
+                          <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Chart</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rtoAnalysis.customers.map((row, i) => (
+                          <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                            <td style={{ padding: '10px 16px', textAlign: 'center', color: '#9ca3af', fontWeight: '600' }}>{i + 1}</td>
+                            <td style={{ padding: '10px 16px', color: '#111827', fontWeight: '500' }}>{row.name}</td>
+                            <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                              <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '12px' }}>
+                                {row.rtoPct}%
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 16px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
+                            <td style={{ padding: '10px 16px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
+                            <td style={{ padding: '10px 16px', textAlign: 'center' }}><MiniPieChart percentage={row.rtoPct} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </BlockStack>
         </Page>
       </div>
