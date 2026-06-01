@@ -201,6 +201,125 @@ const CustomTooltip = ({ active, payload, total }) => {
 // 5-color palette shared between card pie charts and table row dots
 const RTO_COLORS = ['#ef4444', '#f97316', '#eab308', '#8b5cf6', '#06b6d4'];
 
+const CARD_DEFAULT = 5;
+const CARD_PAGE    = 20;
+
+function RtoCard({ title, label, data, fullWidth = false }) {
+  const [expanded, setExpanded] = useState(false);
+  const [page, setPage]         = useState(0);
+
+  // Rows to display: either top-5 or current page of full list
+  const visibleRows = expanded
+    ? data.slice(page * CARD_PAGE, (page + 1) * CARD_PAGE)
+    : data.slice(0, CARD_DEFAULT);
+
+  const totalPages = Math.ceil(data.length / CARD_PAGE);
+  const showPagination = expanded && data.length > CARD_PAGE;
+
+  const handleToggle = () => { setExpanded(e => !e); setPage(0); };
+
+  // Pie always shows top-5 by rtoPct for clarity
+  const pieData = data.slice(0, 5);
+  const pieW    = fullWidth ? 200 : 170;
+  const innerR  = fullWidth ? 50  : 42;
+  const outerR  = fullWidth ? 80  : 68;
+  const pad     = fullWidth ? '10px 16px' : '10px 10px';
+
+  return (
+    <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid #f3f4f6', backgroundColor: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <span style={{ fontSize: '15px', fontWeight: '700', color: '#111827' }}>{title}</span>
+        {data.length > CARD_DEFAULT && (
+          <button
+            onClick={handleToggle}
+            style={{ fontSize: '12px', fontWeight: '600', color: '#6366f1', background: '#eef2ff', border: 'none', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', transition: 'background 0.15s' }}
+          >
+            {expanded ? 'View Less ↑' : `View All (${data.length}) ↓`}
+          </button>
+        )}
+      </div>
+
+      {data.length === 0 ? (
+        <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No RTO orders in selected period</div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'stretch', flex: 1 }}>
+          {/* Table side */}
+          <div style={{ flex: 1, overflowX: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f9fafb' }}>
+                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '32px' }}>#</th>
+                  <th style={{ padding: pad, textAlign: 'left',   color: '#6b7280', fontWeight: '600' }}>{label}</th>
+                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Total</th>
+                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
+                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
+                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO</th>
+                </tr>
+              </thead>
+              <tbody style={{ transition: 'opacity 0.15s ease' }}>
+                {visibleRows.map((row, i) => {
+                  const globalIdx = expanded ? page * CARD_PAGE + i : i;
+                  const dot = RTO_COLORS[Math.min(globalIdx, RTO_COLORS.length - 1)];
+                  return (
+                    <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ padding: pad, textAlign: 'center' }}>
+                        <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: dot }} />
+                      </td>
+                      <td style={{ padding: pad, color: '#111827', fontWeight: '500', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</td>
+                      <td style={{ padding: pad, textAlign: 'center', color: '#374151', fontWeight: '600' }}>{row.total}</td>
+                      <td style={{ padding: pad, textAlign: 'center' }}>
+                        <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 7px', borderRadius: '99px', fontWeight: '700', fontSize: '11px' }}>
+                          {row.rtoPct}%
+                        </span>
+                      </td>
+                      <td style={{ padding: pad, textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
+                      <td style={{ padding: pad, textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Pagination bar */}
+            {showPagination && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid #f3f4f6', backgroundColor: '#fafafa', marginTop: 'auto' }}>
+                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                  {page * CARD_PAGE + 1}–{Math.min((page + 1) * CARD_PAGE, data.length)} of {data.length}
+                </span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                    style={{ fontSize: '12px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', background: page === 0 ? '#f9fafb' : '#fff', color: page === 0 ? '#9ca3af' : '#374151', cursor: page === 0 ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                    ← Prev
+                  </button>
+                  <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                    style={{ fontSize: '12px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', background: page >= totalPages - 1 ? '#f9fafb' : '#fff', color: page >= totalPages - 1 ? '#9ca3af' : '#374151', cursor: page >= totalPages - 1 ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Pie chart side — always top-5 */}
+          <div style={{ width: fullWidth ? '220px' : '180px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
+            <ResponsiveContainer width={pieW} height={pieW}>
+              <PieChart>
+                <Pie data={pieData.map(r => ({ name: r.name, value: r.rto }))} dataKey="value" nameKey="name"
+                  cx="50%" cy="50%" innerRadius={innerR} outerRadius={outerR} isAnimationActive={false}>
+                  {pieData.map((_, i) => <Cell key={i} fill={RTO_COLORS[i]} />)}
+                </Pie>
+                <Tooltip formatter={(v, n) => [`${v} RTO`, n]}
+                  contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+                  wrapperStyle={{ outline: 'none' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Index() {
   const { orders = [], storeProducts = [] } = useLoaderData() || {};
@@ -517,8 +636,7 @@ export default function Index() {
           rtoPct: d.total > 0 ? +((d.rto / d.total) * 100).toFixed(1) : 0,
         }))
         .filter(d => d.rto > 0)
-        .sort((a, b) => b.rtoPct - a.rtoPct || b.rto - a.rto)
-        .slice(0, 5);
+        .sort((a, b) => b.rtoPct - a.rtoPct || b.rto - a.rto);
     };
 
     return {
@@ -879,152 +997,18 @@ export default function Index() {
             {/* ── RTO Analysis Cards ── */}
             <div style={{ marginTop: '8px' }}>
               <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '20px', letterSpacing: '-0.3px' }}>RTO Analysis</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-                {[
-                  { title: '🏙️ Top RTO States',   data: rtoAnalysis.states,    label: 'State' },
-                  { title: '🌆 Top RTO Cities',   data: rtoAnalysis.cities,    label: 'City' },
-                  { title: '📮 Top RTO Pincodes', data: rtoAnalysis.pincodes,  label: 'Pincode' },
-                  { title: '🚚 Top RTO Couriers', data: rtoAnalysis.couriers,  label: 'Courier' },
-                ].map(({ title, data, label }) => (
-                  <div key={title} style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', backgroundColor: '#fafafa' }}>
-                      <span style={{ fontSize: '15px', fontWeight: '700', color: '#111827' }}>{title}</span>
-                    </div>
-                    {data.length === 0 ? (
-                      <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No RTO orders in selected period</div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: '0', alignItems: 'stretch' }}>
-                        {/* Table */}
-                        <div style={{ flex: 1, overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                            <thead>
-                              <tr style={{ backgroundColor: '#f9fafb' }}>
-                                <th style={{ padding: '10px 10px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '32px' }}>#</th>
-                                <th style={{ padding: '10px 10px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>{label}</th>
-                                <th style={{ padding: '10px 10px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
-                                <th style={{ padding: '10px 10px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
-                                <th style={{ padding: '10px 10px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {data.map((row, i) => (
-                                <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                  <td style={{ padding: '10px 10px', textAlign: 'center' }}>
-                                    <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: RTO_COLORS[i] }} />
-                                  </td>
-                                  <td style={{ padding: '10px 10px', color: '#111827', fontWeight: '500', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</td>
-                                  <td style={{ padding: '10px 10px', textAlign: 'center' }}>
-                                    <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 7px', borderRadius: '99px', fontWeight: '700', fontSize: '11px' }}>
-                                      {row.rtoPct}%
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '10px 10px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
-                                  <td style={{ padding: '10px 10px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        {/* Card-level Pie Chart */}
-                        <div style={{ width: '180px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
-                          <ResponsiveContainer width={170} height={170}>
-                            <PieChart>
-                              <Pie
-                                data={data.map(r => ({ name: r.name, value: r.rto }))}
-                                dataKey="value"
-                                nameKey="name"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={42}
-                                outerRadius={68}
-                                isAnimationActive={false}
-                              >
-                                {data.map((_, i) => (
-                                  <Cell key={i} fill={RTO_COLORS[i]} />
-                                ))}
-                              </Pie>
-                              <Tooltip
-                                formatter={(value, name) => [`${value} RTO`, name]}
-                                contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
-                                wrapperStyle={{ outline: 'none' }}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+
+              {/* 2-column grid — align-items:start keeps cards independent heights */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', alignItems: 'start' }}>
+                <RtoCard title="🏙️ Top RTO States"   label="State"   data={rtoAnalysis.states}   />
+                <RtoCard title="🌆 Top RTO Cities"   label="City"    data={rtoAnalysis.cities}   />
+                <RtoCard title="📮 Top RTO Pincodes" label="Pincode" data={rtoAnalysis.pincodes} />
+                <RtoCard title="🚚 Top RTO Couriers" label="Courier" data={rtoAnalysis.couriers} />
               </div>
 
-              {/* Top RTO Customers — full width */}
-              <div style={{ marginTop: '20px', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6', backgroundColor: '#fafafa' }}>
-                  <span style={{ fontSize: '15px', fontWeight: '700', color: '#111827' }}>👤 Top RTO Customers</span>
-                </div>
-                {rtoAnalysis.customers.length === 0 ? (
-                  <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No RTO orders with customer data in selected period</div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                    {/* Table */}
-                    <div style={{ flex: 1, overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                        <thead>
-                          <tr style={{ backgroundColor: '#f9fafb' }}>
-                            <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '36px' }}>#</th>
-                            <th style={{ padding: '10px 16px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>Customer</th>
-                            <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO %</th>
-                            <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>Delivered</th>
-                            <th style={{ padding: '10px 16px', textAlign: 'center', color: '#6b7280', fontWeight: '600' }}>RTO Orders</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rtoAnalysis.customers.map((row, i) => (
-                            <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
-                              <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: RTO_COLORS[i] }} />
-                              </td>
-                              <td style={{ padding: '10px 16px', color: '#111827', fontWeight: '500' }}>{row.name}</td>
-                              <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                                <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '12px' }}>
-                                  {row.rtoPct}%
-                                </span>
-                              </td>
-                              <td style={{ padding: '10px 16px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
-                              <td style={{ padding: '10px 16px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Card-level Pie Chart */}
-                    <div style={{ width: '220px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
-                      <ResponsiveContainer width={200} height={200}>
-                        <PieChart>
-                          <Pie
-                            data={rtoAnalysis.customers.map(r => ({ name: r.name, value: r.rto }))}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={50}
-                            outerRadius={80}
-                            isAnimationActive={false}
-                          >
-                            {rtoAnalysis.customers.map((_, i) => (
-                              <Cell key={i} fill={RTO_COLORS[i]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            formatter={(value, name) => [`${value} RTO`, name]}
-                            contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
-                            wrapperStyle={{ outline: 'none' }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
+              {/* Customers — full width */}
+              <div style={{ marginTop: '20px' }}>
+                <RtoCard title="👤 Top RTO Customers" label="Customer" data={rtoAnalysis.customers} fullWidth />
               </div>
             </div>
 
