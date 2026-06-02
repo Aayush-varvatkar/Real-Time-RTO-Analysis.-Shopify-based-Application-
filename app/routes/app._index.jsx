@@ -308,7 +308,7 @@ function RtoCard({ title, label, data, fullWidth = false }) {
       ) : (
         <div style={{ display: 'flex', alignItems: 'stretch', flex: 1 }}>
           {/* Table side */}
-          <div style={{ flex: 1, overflowX: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f9fafb' }}>
