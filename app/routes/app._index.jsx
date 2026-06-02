@@ -308,7 +308,7 @@ function RtoCard({ title, label, data, fullWidth = false }) {
       ) : (
         <div style={{ display: 'flex', alignItems: 'stretch', flex: 1 }}>
           {/* Table side */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={{ flex: 1, overflowX: 'auto', display: 'flex', flexDirection: 'column' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f9fafb' }}>
@@ -624,7 +624,13 @@ export default function Index() {
     const current = new Date(startObj);
     while (current <= endObj) {
       const dateStr = `${String(current.getDate()).padStart(2, '0')}/${String(current.getMonth() + 1).padStart(2, '0')}/${String(current.getFullYear()).slice(-2)}`;
-      dataMap[dateStr] = { date: dateStr, Total: 0, Pending: 0, Fulfilled: 0, Shipped: 0 };
+      dataMap[dateStr] = {
+        date: dateStr,
+        "Total Orders": 0,
+        "Unfulfilled": 0,
+        "Fulfilled": 0,
+        "In-Transit, Delivered & RTO": 0
+      };
       current.setDate(current.getDate() + 1);
     }
 
@@ -634,14 +640,26 @@ export default function Index() {
       const dateStr = `${String(orderDate.getDate()).padStart(2, '0')}/${String(orderDate.getMonth() + 1).padStart(2, '0')}/${String(orderDate.getFullYear()).slice(-2)}`;
 
       if (dataMap[dateStr]) {
-        dataMap[dateStr].Total++;
+        dataMap[dateStr]["Total Orders"]++;
 
-        if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
-          dataMap[dateStr].Fulfilled++;
-        } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
-          dataMap[dateStr].Shipped++;
+        // Fulfillment status checks
+        const status = (order.displayFulfillmentStatus || '').toLowerCase();
+        if (status === 'fulfilled') {
+          dataMap[dateStr]["Fulfilled"]++;
         } else {
-          dataMap[dateStr].Pending++;
+          dataMap[dateStr]["Unfulfilled"]++;
+        }
+
+        // Logistics delivery status checks: in-transit, delivered, and rto
+        const deliveryStatus = order.orderDeliveryStatus;
+        if (
+          deliveryStatus === 'in_transit' ||
+          deliveryStatus === 'out_for_delivery' ||
+          deliveryStatus === 'delivered' ||
+          deliveryStatus === 'fulfilled' ||
+          deliveryStatus === 'rto_failed'
+        ) {
+          dataMap[dateStr]["In-Transit, Delivered & RTO"]++;
         }
       }
     });
@@ -1011,10 +1029,10 @@ export default function Index() {
                       iconType="circle"
                       wrapperStyle={{ paddingTop: '30px', paddingBottom: '10px' }}
                     />
-                    <Bar dataKey="Total" fill="#00a896" barSize={6} />
-                    <Bar dataKey="Pending" fill="#9ca3af" barSize={6} />
-                    <Bar dataKey="Fulfilled" fill="#059669" barSize={6} />
-                    <Bar dataKey="Shipped" fill="#8ed4ce" barSize={6} />
+                    <Bar dataKey="Total Orders" fill="#4f46e5" barSize={6} />
+                    <Bar dataKey="Unfulfilled" fill="#f97316" barSize={6} />
+                    <Bar dataKey="Fulfilled" fill="#10b981" barSize={6} />
+                    <Bar dataKey="In-Transit, Delivered & RTO" fill="#06b6d4" barSize={6} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
