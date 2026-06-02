@@ -247,7 +247,7 @@ function RtoCard({ title, label, data, fullWidth = false }) {
   // Helper to render sortable column header with single arrow
   const renderSortHeader = (field, displayName) => {
     const isActive = sortField === field;
-    const arrow = isActive ? (sortDir === 'desc' ? '^' : '˅') : '^';
+    const arrow = isActive ? (sortDir === 'desc' ? '⮝' : '⮟') : '⮝';
     return (
       <th
         style={{
@@ -700,7 +700,6 @@ export default function Index() {
           total: d.total,
           rtoPct: d.total > 0 ? +((d.rto / d.total) * 100).toFixed(1) : 0,
         }))
-        .filter(d => d.rto > 0)
         .sort((a, b) => b.rtoPct - a.rtoPct || b.rto - a.rto);
     };
 
