@@ -209,11 +209,11 @@ const CustomBarTooltip = ({ active, payload, label }) => {
     });
 
     const orderedKeys = [
-      { key: "Total Orders", label: "Total Orders", defaultColor: "#15803d" },
-      { key: "Unfulfilled", label: "Unfulfilled", defaultColor: "#eab308" },
+      { key: "Total Orders", label: "Total Orders", defaultColor: "#008f34ff" },
+      { key: "Unfulfilled", label: "Unfulfilled", defaultColor: "#ffd351ff" },
       { key: "Fulfilled", label: "Fulfilled", defaultColor: "#319e9a" },
-      { key: "Delivered", label: "Delivered", defaultColor: "#8dffb6ff" },
-      { key: "In-Transit", label: "In-Transit", defaultColor: "#ecfffe6a" },
+      { key: "Delivered", label: "Delivered", defaultColor: "#31ff7dc3" },
+      { key: "In-Transit", label: "In-Transit", defaultColor: "#5052526a" },
       { key: "Failed", label: "Failed", defaultColor: "#ef4444" }
     ];
 
@@ -254,6 +254,28 @@ const CustomBarTooltip = ({ active, payload, label }) => {
     );
   }
   return null;
+};
+
+const renderCustomLegend = (props) => {
+  const orderedLegend = [
+    { value: "Total Orders", color: "#15803d" },
+    { value: "Unfulfilled", color: "#ffd351ff" },
+    { value: "Fulfilled", color: "#319e9a" },
+    { value: "Delivered", color: "#31ff7da0" },
+    { value: "In-Transit", color: "#5052526a" },
+    { value: "Failed", color: "#ef4444" }
+  ];
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '20px', paddingTop: '24px', paddingBottom: '10px' }}>
+      {orderedLegend.map((item, index) => (
+        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#4b5563', fontWeight: '500' }}>
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block' }} />
+          <span>{item.value}</span>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 // 5-color palette shared between card pie charts and table row dots
@@ -1084,22 +1106,13 @@ export default function Index() {
                       content={<CustomBarTooltip />}
                     />
                     <Legend
-                      iconType="circle"
-                      wrapperStyle={{ paddingTop: '30px', paddingBottom: '10px' }}
-                      payload={[
-                        { value: "Total Orders", type: "circle", id: "Total Orders", color: "#15803d" },
-                        { value: "Unfulfilled", type: "circle", id: "Unfulfilled", color: "#eab308" },
-                        { value: "Fulfilled", type: "circle", id: "Fulfilled", color: "#319e9a" },
-                        { value: "Delivered", type: "circle", id: "Delivered", color: "#8dffb6ff" },
-                        { value: "In-Transit", type: "circle", id: "In-Transit", color: "#ecfffe6a" },
-                        { value: "Failed", type: "circle", id: "Failed", color: "#ef4444" }
-                      ]}
+                      content={renderCustomLegend}
                     />
                     <Bar dataKey="Total Orders" stackId="total" fill="#15803d" barSize={6} />
-                    <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#eab308" barSize={6} />
+                    <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#ffd351ff" barSize={6} />
                     <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#319e9a" barSize={6} />
-                    <Bar dataKey="Delivered" stackId="logistics" fill="#8dffb6ff" barSize={6} />
-                    <Bar dataKey="In-Transit" stackId="logistics" fill="#ecfffe6a" barSize={6} />
+                    <Bar dataKey="Delivered" stackId="logistics" fill="#31ff7da7" barSize={6} />
+                    <Bar dataKey="In-Transit" stackId="logistics" fill="#5052526a" barSize={6} />
                     <Bar dataKey="Failed" stackId="logistics" fill="#ef4444" barSize={6} />
                   </BarChart>
                 </ResponsiveContainer>
