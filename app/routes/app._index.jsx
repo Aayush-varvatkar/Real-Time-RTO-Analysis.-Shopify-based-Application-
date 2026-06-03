@@ -198,6 +198,64 @@ const CustomTooltip = ({ active, payload, total }) => {
   return null;
 };
 
+const CustomBarTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const dataMap = {};
+    payload.forEach(item => {
+      dataMap[item.dataKey] = {
+        value: item.value,
+        color: item.color || item.fill
+      };
+    });
+
+    const orderedKeys = [
+      { key: "Total Orders", label: "Total Orders", defaultColor: "#15803d" },
+      { key: "Unfulfilled", label: "Unfulfilled", defaultColor: "#eab308" },
+      { key: "Fulfilled", label: "Fulfilled", defaultColor: "#319e9a" },
+      { key: "Delivered", label: "Delivered", defaultColor: "#8dffb6ff" },
+      { key: "In-Transit", label: "In-Transit", defaultColor: "#ecfffe6a" },
+      { key: "Failed", label: "Failed", defaultColor: "#ef4444" }
+    ];
+
+    return (
+      <div style={{
+        backgroundColor: '#fff',
+        border: '1px solid #e5e7eb',
+        padding: '12px 14px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+        borderRadius: '8px',
+        fontSize: '13px',
+        fontFamily: 'inherit',
+        color: '#1f2937',
+        minWidth: '180px'
+      }}>
+        <p style={{ margin: '0 0 8px 0', fontWeight: '700', color: '#111827', fontSize: '14px', borderBottom: '1px solid #f3f4f6', paddingBottom: '4px' }}>
+          {label}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {orderedKeys.map(item => {
+            const data = dataMap[item.key];
+            const value = data ? data.value : 0;
+            const color = data ? data.color : item.defaultColor;
+            return (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '500', color: '#4b5563' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
+                  {item.label}
+                </span>
+                <span style={{ fontWeight: '700', color: '#111827' }}>
+                  {value}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 // 5-color palette shared between card pie charts and table row dots
 const RTO_COLORS = ['#ef4444', '#f97316', '#eab308', '#8b5cf6', '#06b6d4'];
 
@@ -1023,17 +1081,25 @@ export default function Index() {
                     />
                     <Tooltip
                       cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}
+                      content={<CustomBarTooltip />}
                     />
                     <Legend
                       iconType="circle"
                       wrapperStyle={{ paddingTop: '30px', paddingBottom: '10px' }}
+                      payload={[
+                        { value: "Total Orders", type: "circle", id: "Total Orders", color: "#15803d" },
+                        { value: "Unfulfilled", type: "circle", id: "Unfulfilled", color: "#eab308" },
+                        { value: "Fulfilled", type: "circle", id: "Fulfilled", color: "#319e9a" },
+                        { value: "Delivered", type: "circle", id: "Delivered", color: "#8dffb6ff" },
+                        { value: "In-Transit", type: "circle", id: "In-Transit", color: "#ecfffe6a" },
+                        { value: "Failed", type: "circle", id: "Failed", color: "#ef4444" }
+                      ]}
                     />
                     <Bar dataKey="Total Orders" stackId="total" fill="#15803d" barSize={6} />
                     <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#eab308" barSize={6} />
                     <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#319e9a" barSize={6} />
-                    <Bar dataKey="Delivered" stackId="logistics" fill="#15803d" barSize={6} />
-                    <Bar dataKey="In-Transit" stackId="logistics" fill="#319e9a" barSize={6} />
+                    <Bar dataKey="Delivered" stackId="logistics" fill="#8dffb6ff" barSize={6} />
+                    <Bar dataKey="In-Transit" stackId="logistics" fill="#ecfffe6a" barSize={6} />
                     <Bar dataKey="Failed" stackId="logistics" fill="#ef4444" barSize={6} />
                   </BarChart>
                 </ResponsiveContainer>
