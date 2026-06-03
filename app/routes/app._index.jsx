@@ -202,13 +202,13 @@ const CustomTooltip = ({ active, payload, total }) => {
 const RTO_COLORS = ['#ef4444', '#f97316', '#eab308', '#8b5cf6', '#06b6d4'];
 
 const CARD_DEFAULT = 5;
-const CARD_PAGE    = 20;
+const CARD_PAGE = 20;
 
 function RtoCard({ title, label, data, fullWidth = false }) {
   const [expanded, setExpanded] = useState(false);
-  const [page, setPage]         = useState(0);
+  const [page, setPage] = useState(0);
   const [sortField, setSortField] = useState('rtoPct'); // Default RTO %
-  const [sortDir, setSortDir]     = useState('desc');   // Default descending
+  const [sortDir, setSortDir] = useState('desc');   // Default descending
 
   // Sort the full dataset based on active sort options
   const sortedData = useMemo(() => {
@@ -283,10 +283,10 @@ function RtoCard({ title, label, data, fullWidth = false }) {
 
   // Pie always shows top-5 by current sorted order for clarity
   const pieData = sortedData.slice(0, 5);
-  const pieW    = fullWidth ? 200 : 170;
-  const innerR  = fullWidth ? 50  : 42;
-  const outerR  = fullWidth ? 80  : 68;
-  const pad     = fullWidth ? '10px 16px' : '10px 10px';
+  const pieW = fullWidth ? 200 : 170;
+  const innerR = fullWidth ? 50 : 42;
+  const outerR = fullWidth ? 80 : 68;
+  const pad = fullWidth ? '10px 16px' : '10px 10px';
 
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
@@ -313,7 +313,7 @@ function RtoCard({ title, label, data, fullWidth = false }) {
               <thead>
                 <tr style={{ backgroundColor: '#f9fafb' }}>
                   <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '32px' }}>#</th>
-                  <th style={{ padding: pad, textAlign: 'left',   color: '#6b7280', fontWeight: '600' }}>{label}</th>
+                  <th style={{ padding: pad, textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>{label}</th>
                   {renderSortHeader('total', 'Total')}
                   {renderSortHeader('rtoPct', 'RTO %')}
                   {renderSortHeader('delivered', 'Delivered')}
@@ -631,7 +631,7 @@ export default function Index() {
         "Fulfilled": 0,
         "Delivered": 0,
         "In-Transit": 0,
-        "RTO": 0
+        "Failed": 0
       };
       current.setDate(current.getDate() + 1);
     }
@@ -659,7 +659,7 @@ export default function Index() {
         } else if (deliveryStatus === 'in_transit' || deliveryStatus === 'out_for_delivery') {
           dataMap[dateStr]["In-Transit"]++;
         } else if (deliveryStatus === 'rto_failed') {
-          dataMap[dateStr]["RTO"]++;
+          dataMap[dateStr]["Failed"]++;
         }
       }
     });
@@ -722,10 +722,10 @@ export default function Index() {
     };
 
     return {
-      states:    groupBy(o => o.shippingState || null),
-      cities:    groupBy(o => o.shippingCity   || null),
-      pincodes:  groupBy(o => o.shippingPincode || null),
-      couriers:  groupBy(o => o.fulfillments?.[0]?.trackingInfo?.[0]?.company || null),
+      states: groupBy(o => o.shippingState || null),
+      cities: groupBy(o => o.shippingCity || null),
+      pincodes: groupBy(o => o.shippingPincode || null),
+      couriers: groupBy(o => o.fulfillments?.[0]?.trackingInfo?.[0]?.company || null),
       customers: groupBy(o => {
         if (!o.customer) return null;
         const n = `${o.customer.firstName || ''} ${o.customer.lastName || ''}`.trim();
@@ -1029,12 +1029,12 @@ export default function Index() {
                       iconType="circle"
                       wrapperStyle={{ paddingTop: '30px', paddingBottom: '10px' }}
                     />
-                    <Bar dataKey="Total Orders" fill="#15803d" barSize={6} />
-                    <Bar dataKey="Unfulfilled" fill="#eab308" barSize={6} />
-                    <Bar dataKey="Fulfilled" fill="#319e9a" barSize={6} />
+                    <Bar dataKey="Total Orders" stackId="total" fill="#15803d" barSize={6} />
+                    <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#eab308" barSize={6} />
+                    <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#319e9a" barSize={6} />
                     <Bar dataKey="Delivered" stackId="logistics" fill="#15803d" barSize={6} />
                     <Bar dataKey="In-Transit" stackId="logistics" fill="#319e9a" barSize={6} />
-                    <Bar dataKey="RTO" stackId="logistics" fill="#ef4444" barSize={6} />
+                    <Bar dataKey="Failed" stackId="logistics" fill="#ef4444" barSize={6} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1084,8 +1084,8 @@ export default function Index() {
 
               {/* 2-column grid — align-items:start keeps cards independent heights */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', alignItems: 'start' }}>
-                <RtoCard title="🏙️ Top RTO States"   label="State"   data={rtoAnalysis.states}   />
-                <RtoCard title="🌆 Top RTO Cities"   label="City"    data={rtoAnalysis.cities}   />
+                <RtoCard title="🏙️ Top RTO States" label="State" data={rtoAnalysis.states} />
+                <RtoCard title="🌆 Top RTO Cities" label="City" data={rtoAnalysis.cities} />
                 <RtoCard title="📮 Top RTO Pincodes" label="Pincode" data={rtoAnalysis.pincodes} />
                 <RtoCard title="🚚 Top RTO Couriers" label="Courier" data={rtoAnalysis.couriers} />
               </div>
