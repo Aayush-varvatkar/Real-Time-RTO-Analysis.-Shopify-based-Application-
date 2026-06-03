@@ -629,7 +629,9 @@ export default function Index() {
         "Total Orders": 0,
         "Unfulfilled": 0,
         "Fulfilled": 0,
-        "In-Transit, Delivered & RTO": 0
+        "Delivered": 0,
+        "In-Transit": 0,
+        "RTO": 0
       };
       current.setDate(current.getDate() + 1);
     }
@@ -650,16 +652,14 @@ export default function Index() {
           dataMap[dateStr]["Unfulfilled"]++;
         }
 
-        // Logistics delivery status checks: in-transit, delivered, and rto
+        // Logistics delivery status checks
         const deliveryStatus = order.orderDeliveryStatus;
-        if (
-          deliveryStatus === 'in_transit' ||
-          deliveryStatus === 'out_for_delivery' ||
-          deliveryStatus === 'delivered' ||
-          deliveryStatus === 'fulfilled' ||
-          deliveryStatus === 'rto_failed'
-        ) {
-          dataMap[dateStr]["In-Transit, Delivered & RTO"]++;
+        if (deliveryStatus === 'delivered' || deliveryStatus === 'fulfilled') {
+          dataMap[dateStr]["Delivered"]++;
+        } else if (deliveryStatus === 'in_transit' || deliveryStatus === 'out_for_delivery') {
+          dataMap[dateStr]["In-Transit"]++;
+        } else if (deliveryStatus === 'rto_failed') {
+          dataMap[dateStr]["RTO"]++;
         }
       }
     });
@@ -1029,10 +1029,12 @@ export default function Index() {
                       iconType="circle"
                       wrapperStyle={{ paddingTop: '30px', paddingBottom: '10px' }}
                     />
-                    <Bar dataKey="Total Orders" fill="#4f46e5" barSize={6} />
-                    <Bar dataKey="Unfulfilled" fill="#f97316" barSize={6} />
-                    <Bar dataKey="Fulfilled" fill="#10b981" barSize={6} />
-                    <Bar dataKey="In-Transit, Delivered & RTO" fill="#06b6d4" barSize={6} />
+                    <Bar dataKey="Total Orders" fill="#15803d" barSize={6} />
+                    <Bar dataKey="Unfulfilled" fill="#eab308" barSize={6} />
+                    <Bar dataKey="Fulfilled" fill="#319e9a" barSize={6} />
+                    <Bar dataKey="Delivered" stackId="logistics" fill="#15803d" barSize={6} />
+                    <Bar dataKey="In-Transit" stackId="logistics" fill="#319e9a" barSize={6} />
+                    <Bar dataKey="RTO" stackId="logistics" fill="#ef4444" barSize={6} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
