@@ -116,6 +116,15 @@ export const loader = async ({ request }) => {
                 province
                 zip
               }
+              channelInformation {
+                app {
+                  name
+                }
+                channelDefinition {
+                  channelName
+                  handle
+                }
+              }
               lineItems(first: 10) {
                 edges {
                   node {
@@ -159,6 +168,16 @@ export const loader = async ({ request }) => {
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
 
+    // Determine channel
+    const channelName = order.channelInformation?.channelDefinition?.channelName || order.channelInformation?.app?.name || '';
+    const channelHandle = order.channelInformation?.channelDefinition?.handle || '';
+    const nativeChannels = ["online store", "point of sale", "draft orders", "shop", "web", "pos", "shopify_draft_order"];
+    const isShopify = !channelName || 
+      nativeChannels.includes(channelName.toLowerCase()) || 
+      nativeChannels.includes(channelHandle.toLowerCase());
+
+    const dispatchedChannelName = isShopify ? '' : (channelName || 'Other Channel');
+
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
@@ -175,9 +194,30 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+
+      // If third-party channel and no status available, mark as dispatched_by_other_channel
+      if (!isShopify && orderDeliveryStatus === 'in_transit') {
+        orderDeliveryStatus = 'dispatched_by_other_channel';
+      }
+
+      return { 
+        ...order, 
+        fulfillments: enrichedFulfillments, 
+        orderDeliveryStatus, 
+        shippingCity, 
+        shippingState, 
+        shippingPincode,
+        dispatchedChannelName
+      };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+    return { 
+      ...order, 
+      orderDeliveryStatus, 
+      shippingCity, 
+      shippingState, 
+      shippingPincode,
+      dispatchedChannelName
+    };
   });
 
   return { orders: enhancedOrders, storeProducts };
@@ -214,6 +254,7 @@ const CustomBarTooltip = ({ active, payload, label }) => {
       { key: "Fulfilled", label: "Fulfilled", defaultColor: "#319e9a" },
       { key: "Delivered", label: "Delivered", defaultColor: "#31ff7dc3" },
       { key: "In-Transit", label: "In-Transit", defaultColor: "#5052526a" },
+      { key: "Dispatched by Channel", label: "Dispatched by Channel", defaultColor: "#818cf8" },
       { key: "Failed", label: "Failed", defaultColor: "#ef4444" }
     ];
 
@@ -263,6 +304,7 @@ const renderCustomLegend = (props) => {
     { value: "Fulfilled", color: "#319e9a" },
     { value: "Delivered", color: "#31ff7da0" },
     { value: "In-Transit", color: "#5052526a" },
+    { value: "Dispatched by Channel", color: "#818cf8" },
     { value: "Failed", color: "#ef4444" }
   ];
 
@@ -634,6 +676,9 @@ export default function Index() {
           statusMatches = (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery');
         } else if (deliveryStatusFilter === "Failed") {
           statusMatches = (order.orderDeliveryStatus === 'rto_failed');
+        } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
+          const channel = deliveryStatusFilter.replace("Dispatched by ", "");
+          statusMatches = (order.orderDeliveryStatus === 'dispatched_by_other_channel' && order.dispatchedChannelName === channel);
         }
         if (!statusMatches) return false;
       }
@@ -664,6 +709,7 @@ export default function Index() {
     let fulfilled = 0;
     let failed = 0;
     let unfulfilled = 0;
+    const dispatchedByChannel = {};
 
     filteredOrders.forEach(order => {
       const status = (order.displayFulfillmentStatus || '').toLowerCase();
@@ -671,6 +717,9 @@ export default function Index() {
 
       if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
         fulfilled++;
+      } else if (order.orderDeliveryStatus === 'dispatched_by_other_channel') {
+        const channel = order.dispatchedChannelName || 'Other Channel';
+        dispatchedByChannel[channel] = (dispatchedByChannel[channel] || 0) + 1;
       } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
         shipped++;
       } else if (order.orderDeliveryStatus === 'rto_failed') {
@@ -686,7 +735,8 @@ export default function Index() {
       shipped,
       fulfilled,
       failed,
-      unfulfilled
+      unfulfilled,
+      dispatchedByChannel
     };
   }, [filteredOrders]);
 
@@ -711,6 +761,7 @@ export default function Index() {
         "Fulfilled": 0,
         "Delivered": 0,
         "In-Transit": 0,
+        "Dispatched by Channel": 0,
         "Failed": 0
       };
       current.setDate(current.getDate() + 1);
@@ -736,6 +787,8 @@ export default function Index() {
         const deliveryStatus = order.orderDeliveryStatus;
         if (deliveryStatus === 'delivered' || deliveryStatus === 'fulfilled') {
           dataMap[dateStr]["Delivered"]++;
+        } else if (deliveryStatus === 'dispatched_by_other_channel') {
+          dataMap[dateStr]["Dispatched by Channel"]++;
         } else if (deliveryStatus === 'in_transit' || deliveryStatus === 'out_for_delivery') {
           dataMap[dateStr]["In-Transit"]++;
         } else if (deliveryStatus === 'rto_failed') {
@@ -752,6 +805,7 @@ export default function Index() {
     let delivered = 0;
     let rto = 0;
     let inTransit = 0;
+    let dispatched = 0;
 
     filteredOrders.forEach(order => {
       const deliveryStatus = order.orderDeliveryStatus;
@@ -760,6 +814,8 @@ export default function Index() {
         delivered++;
       } else if (deliveryStatus === 'rto_failed') {
         rto++;
+      } else if (deliveryStatus === 'dispatched_by_other_channel') {
+        dispatched++;
       } else if (deliveryStatus === 'in_transit' || deliveryStatus === 'out_for_delivery') {
         inTransit++;
       }
@@ -769,6 +825,7 @@ export default function Index() {
       { name: 'Delivered', value: delivered, color: '#059669' },
       { name: 'RTO', value: rto, color: '#ef4444' },
       { name: 'In-Transit', value: inTransit, color: '#00a896' },
+      { name: 'Dispatched by Channel', value: dispatched, color: '#818cf8' },
     ].filter(d => d.value > 0);
   }, [filteredOrders]);
 
@@ -862,7 +919,11 @@ export default function Index() {
     { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
     { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
     { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
-    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
+    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } },
+    ...Object.keys(metrics.dispatchedByChannel).map(channel => ({
+      content: `Dispatched by ${channel}`,
+      onAction: () => { setDeliveryStatusFilter(`Dispatched by ${channel}`); toggleDeliveryStatusPopover(); }
+    }))
   ];
 
   // State / City / Pincode action lists
@@ -891,7 +952,7 @@ export default function Index() {
   ];
 
   const styles = {
-    grid: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginTop: "32px", marginBottom: "32px" },
+    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginTop: "32px", marginBottom: "32px" },
     card: {
       backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: "8px",
       boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
@@ -1072,6 +1133,14 @@ export default function Index() {
                 </div>
                 <p style={styles.cardValue}>{metrics.unfulfilled}</p>
               </div>
+              {Object.entries(metrics.dispatchedByChannel).map(([channel, count]) => (
+                <div key={channel} style={styles.card}>
+                  <div style={styles.cardTitleOuter}>
+                    <h3 style={styles.cardTitle}>Dispatched by {channel}</h3>
+                  </div>
+                  <p style={styles.cardValue}>{count}</p>
+                </div>
+              ))}
             </div>
 
             <div style={styles.section}>
@@ -1113,6 +1182,7 @@ export default function Index() {
                     <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#319e9a" barSize={6} />
                     <Bar dataKey="Delivered" stackId="logistics" fill="#31ff7da7" barSize={6} />
                     <Bar dataKey="In-Transit" stackId="logistics" fill="#5052526a" barSize={6} />
+                    <Bar dataKey="Dispatched by Channel" stackId="logistics" fill="#818cf8" barSize={6} />
                     <Bar dataKey="Failed" stackId="logistics" fill="#ef4444" barSize={6} />
                   </BarChart>
                 </ResponsiveContainer>

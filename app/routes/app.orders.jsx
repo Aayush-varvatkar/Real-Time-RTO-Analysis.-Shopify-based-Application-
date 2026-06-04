@@ -109,6 +109,15 @@ export const loader = async ({ request }) => {
                 province
                 zip
               }
+              channelInformation {
+                app {
+                  name
+                }
+                channelDefinition {
+                  channelName
+                  handle
+                }
+              }
               lineItems(first: 10) {
                 edges {
                   node {
@@ -154,6 +163,16 @@ export const loader = async ({ request }) => {
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
 
+    // Determine channel
+    const channelName = order.channelInformation?.channelDefinition?.channelName || order.channelInformation?.app?.name || '';
+    const channelHandle = order.channelInformation?.channelDefinition?.handle || '';
+    const nativeChannels = ["online store", "point of sale", "draft orders", "shop", "web", "pos", "shopify_draft_order"];
+    const isShopify = !channelName || 
+      nativeChannels.includes(channelName.toLowerCase()) || 
+      nativeChannels.includes(channelHandle.toLowerCase());
+
+    const dispatchedChannelName = isShopify ? '' : (channelName || 'Other Channel');
+
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
@@ -170,9 +189,30 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+
+      // If third-party channel and no status available, mark as dispatched_by_other_channel
+      if (!isShopify && orderDeliveryStatus === 'in_transit') {
+        orderDeliveryStatus = 'dispatched_by_other_channel';
+      }
+
+      return { 
+        ...order, 
+        fulfillments: enrichedFulfillments, 
+        orderDeliveryStatus, 
+        shippingCity, 
+        shippingState, 
+        shippingPincode,
+        dispatchedChannelName
+      };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+    return { 
+      ...order, 
+      orderDeliveryStatus, 
+      shippingCity, 
+      shippingState, 
+      shippingPincode,
+      dispatchedChannelName
+    };
   });
 
   return { orders: enhancedOrders, storeProducts };
@@ -276,6 +316,16 @@ export default function Orders() {
   const togglePincodePopover = useCallback(() => setPincodePopoverActive((a) => !a), []);
   const [pincodeFilter, setPincodeFilter] = useState("All Pincodes");
 
+  const uniqueChannels = useMemo(() => {
+    const channels = new Set();
+    orders.forEach(order => {
+      if (order.orderDeliveryStatus === 'dispatched_by_other_channel' && order.dispatchedChannelName) {
+        channels.add(order.dispatchedChannelName);
+      }
+    });
+    return Array.from(channels).sort();
+  }, [orders]);
+
   // Use store products directly (from loader) — only real catalog products appear here
   const uniqueProducts = useMemo(() => storeProducts, [storeProducts]);
 
@@ -339,6 +389,9 @@ export default function Orders() {
           statusMatches = (orderStatus === 'in_transit' || orderStatus === 'out_for_delivery');
         } else if (deliveryStatusFilter === "Failed") {
           statusMatches = (orderStatus === 'RTO' || orderStatus === 'rto_failed');
+        } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
+          const channel = deliveryStatusFilter.replace("Dispatched by ", "");
+          statusMatches = (orderStatus === 'dispatched_by_other_channel' && order.dispatchedChannelName === channel);
         }
         if (!statusMatches) return false;
       }
@@ -387,7 +440,9 @@ export default function Orders() {
         .join(' | ') || '';
 
       let trackingStatus = 'N/A';
-      if (order.fulfillments && order.fulfillments.length > 0) {
+      if (order.orderDeliveryStatus === 'dispatched_by_other_channel') {
+        trackingStatus = `Dispatched by ${order.dispatchedChannelName}`;
+      } else if (order.fulfillments && order.fulfillments.length > 0) {
         const f = order.fulfillments[0];
         if (f.trackingInfo && f.trackingInfo.length > 0) {
           trackingStatus = f.trackingInfo[0].courierDeliveryStatus || 'in_transit';
@@ -479,7 +534,11 @@ export default function Orders() {
     { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
     { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
     { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
-    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
+    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } },
+    ...uniqueChannels.map(channel => ({
+      content: `Dispatched by ${channel}`,
+      onAction: () => { setDeliveryStatusFilter(`Dispatched by ${channel}`); toggleDeliveryStatusPopover(); }
+    }))
   ];
 
   // State / City / Pincode action lists
@@ -507,18 +566,24 @@ export default function Orders() {
     }))
   ];
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, channelName) => {
     let bgColor = "#f3f4f6";
     let textColor = "#374151";
+    let text = status.replace(/_/g, " ");
 
     if (status === "delivered") { bgColor = "#dcfce7"; textColor = "#166534"; }
     else if (status === "in_transit") { bgColor = "#dbeafe"; textColor = "#1e40af"; }
     else if (status === "out_for_delivery") { bgColor = "#fef08a"; textColor = "#854d0e"; }
     else if (status === "RTO" || status === "failed" || status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; }
+    else if (status === "dispatched_by_other_channel") {
+      bgColor = "#e0e7ff";
+      textColor = "#3730a3";
+      text = `Dispatched by ${channelName || 'Other'}`;
+    }
 
     return (
       <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize", whiteSpace: "nowrap" }}>
-        {status.replace(/_/g, " ")}
+        {text}
       </span>
     );
   };
@@ -693,7 +758,9 @@ export default function Orders() {
                         const customerName = order.customer ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer" : "No Customer";
 
                         let trackingStatus = "N/A";
-                        if (order.fulfillments && order.fulfillments.length > 0) {
+                        if (order.orderDeliveryStatus === 'dispatched_by_other_channel') {
+                           trackingStatus = "dispatched_by_other_channel";
+                        } else if (order.fulfillments && order.fulfillments.length > 0) {
                           const f = order.fulfillments[0];
                           if (f.trackingInfo && f.trackingInfo.length > 0) {
                             trackingStatus = f.trackingInfo[0].courierDeliveryStatus || "in_transit";
@@ -718,7 +785,7 @@ export default function Orders() {
                                 </div>
                               ))}
                             </td>
-                            <td style={{ padding: "16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
+                            <td style={{ padding: "16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus, order.dispatchedChannelName) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
                             <td style={{ padding: "16px" }}>{getFulfillmentBadge(order.displayFulfillmentStatus)}</td>
                             <td style={{ padding: "16px", textAlign: "center" }}>
                               <div style={{ marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "#111827" }}>
