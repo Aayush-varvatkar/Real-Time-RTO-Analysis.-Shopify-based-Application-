@@ -208,12 +208,32 @@ export const loader = async ({ request }) => {
       orderDeliveryStatus, 
       shippingCity, 
       shippingState, 
-      shippingPincode,
+      shippingPincode, 
       dispatchedChannelName
     };
   });
 
-  return { orders: enhancedOrders, storeProducts };
+  // Filter orders: include non‑Shopify or Shopify orders without tracking info
+  const filteredOrders = enhancedOrders.filter((o) => {
+    if (!o.dispatchedChannelName) {
+      // Shopify order (channel empty)
+      // Keep only if no tracking info (i.e., orderDeliveryStatus may be empty or "tracking added")
+      // Here we consider orders where orderDeliveryStatus is falsy or equals 'tracking added'
+      return !o.orderDeliveryStatus || o.orderDeliveryStatus === 'tracking added';
+    }
+    // Non‑Shopify channel orders are kept (they have dispatchedChannelName)
+    return true;
+  });
+
+  // Summarize dispatched channels for UI card
+  const dispatchedSummary = filteredOrders.reduce((acc, cur) => {
+    if (cur.dispatchedChannelName) {
+      acc[cur.dispatchedChannelName] = (acc[cur.dispatchedChannelName] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  return { orders: filteredOrders, storeProducts, dispatchedSummary };
 };
 
 const CustomTooltip = ({ active, payload, total }) => {
