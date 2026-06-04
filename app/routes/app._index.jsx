@@ -193,22 +193,22 @@ export const loader = async ({ request }) => {
         orderDeliveryStatus = 'dispatched_by_other_channel';
       }
 
-      return { 
-        ...order, 
-        fulfillments: enrichedFulfillments, 
-        orderDeliveryStatus, 
-        shippingCity, 
-        shippingState, 
+      return {
+        ...order,
+        fulfillments: enrichedFulfillments,
+        orderDeliveryStatus,
+        shippingCity,
+        shippingState,
         shippingPincode,
         dispatchedChannelName
       };
     }
-    return { 
-      ...order, 
-      orderDeliveryStatus, 
-      shippingCity, 
-      shippingState, 
-      shippingPincode, 
+    return {
+      ...order,
+      orderDeliveryStatus,
+      shippingCity,
+      shippingState,
+      shippingPincode,
       dispatchedChannelName
     };
   });
