@@ -111,11 +111,7 @@ export const loader = async ({ request }) => {
               }
               channelInformation {
                 app {
-                  name
-                }
-                channelDefinition {
-                  channelName
-                  handle
+                  title
                 }
               }
               lineItems(first: 10) {
@@ -163,15 +159,12 @@ export const loader = async ({ request }) => {
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
 
-    // Determine channel
-    const channelName = order.channelInformation?.channelDefinition?.channelName || order.channelInformation?.app?.name || '';
-    const channelHandle = order.channelInformation?.channelDefinition?.handle || '';
-    const nativeChannels = ["online store", "point of sale", "draft orders", "shop", "web", "pos", "shopify_draft_order"];
-    const isShopify = !channelName || 
-      nativeChannels.includes(channelName.toLowerCase()) || 
-      nativeChannels.includes(channelHandle.toLowerCase());
+    // Determine channel — use app.title from channelInformation (confirmed field)
+    const appTitle = order.channelInformation?.app?.title || '';
+    const nativeApps = ["online store", "point of sale", "draft orders", "shopify", "shop", "shopify draft orders"];
+    const isShopify = !appTitle || nativeApps.some(n => appTitle.toLowerCase().includes(n));
 
-    const dispatchedChannelName = isShopify ? '' : (channelName || 'Other Channel');
+    const dispatchedChannelName = isShopify ? '' : (appTitle || 'Other Channel');
 
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
