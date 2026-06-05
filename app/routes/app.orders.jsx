@@ -35,48 +35,6 @@ function normalizeDeliveryStatus(fulfillmentStatus) {
   return 'in_transit'; // Covers 'fulfilled', 'in_transit', 'pending', etc.
 }
 
-const isSupportedChannel = (channelName, shop) => {
-  if (!channelName) return true;
-  const lower = channelName.toLowerCase();
-  
-  // Standard supported channels and common checkouts
-  const standardSupported = [
-    'shopify',
-    'online store',
-    'goeasify',
-    'fastrr',
-    'draft',
-    'pos',
-    'point of sale',
-    'store-supported',
-    'local delivery',
-    'buy button',
-    'inbox',
-    'shop'
-  ];
-
-  if (standardSupported.some(item => lower.includes(item))) {
-    return true;
-  }
-
-  if (shop) {
-    const shopLower = shop.toLowerCase();
-    const shopNamePart = shopLower.split('.')[0];
-    const shopNameClean = shopNamePart.replace(/-/g, ' ');
-    if (lower.includes(shopNamePart) || lower.includes(shopNameClean)) {
-      return true;
-    }
-  }
-
-  return false;
-};
-
-const isDeliveryStatusUnavailable = (status) => {
-  if (!status) return true;
-  const statusLower = status.toLowerCase().trim();
-  return statusLower === '' || statusLower === 'tracking added' || statusLower === 'tracking_added';
-};
-
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
@@ -138,17 +96,6 @@ export const loader = async ({ request }) => {
                 firstName
                 lastName
               }
-              app {
-                name
-              }
-              channelInformation {
-                channelDefinition {
-                  channelName
-                }
-                app {
-                  title
-                }
-              }
               displayFinancialStatus
               displayFulfillmentStatus
               totalPriceSet {
@@ -200,25 +147,6 @@ export const loader = async ({ request }) => {
   }
 
   const enhancedOrders = allRawOrders.map((order) => {
-    const channel = order.channelInformation?.channelDefinition?.channelName || order.app?.name || 'Online Store';
-    const isSupported = isSupportedChannel(channel, shop);
-
-    // Determine raw delivery status
-    let rawDeliveryStatus = '';
-    let trackingNumber = '';
-    let trackingCompany = '';
-    if (order.fulfillments && order.fulfillments.length > 0) {
-      const firstFulfillment = order.fulfillments[0];
-      rawDeliveryStatus = firstFulfillment.displayStatus || firstFulfillment.status || '';
-      if (firstFulfillment.trackingInfo && firstFulfillment.trackingInfo.length > 0) {
-        trackingNumber = firstFulfillment.trackingInfo[0].number || '';
-        trackingCompany = firstFulfillment.trackingInfo[0].company || '';
-      }
-    }
-
-    const deliveryStatusUnavailable = isDeliveryStatusUnavailable(rawDeliveryStatus);
-    const isExternalDispatched = !isSupported && deliveryStatusUnavailable;
-
     let orderDeliveryStatus = 'unknown';
 
     // Normalize address fields
@@ -226,24 +154,11 @@ export const loader = async ({ request }) => {
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
 
-    // Determine channel — use app.title from channelInformation (confirmed field)
-    const appTitle = order.channelInformation?.app?.title || '';
-    const nativeApps = ["online store", "point of sale", "draft orders", "shopify", "shop", "shopify draft orders"];
-    const isShopify = !appTitle || nativeApps.some(n => appTitle.toLowerCase().includes(n));
-
-    const dispatchedChannelName = isShopify ? '' : (appTitle || 'Other Channel');
-
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
         const actualStatus = fulfillment.displayStatus || fulfillment.status || '';
-        
-        let normalizedStatus;
-        if (isExternalDispatched) {
-          normalizedStatus = `dispatched_by_${channel}`;
-        } else {
-          normalizedStatus = normalizeDeliveryStatus(actualStatus);
-        }
+        const normalizedStatus = normalizeDeliveryStatus(actualStatus);
 
         if (trackingInfo && trackingInfo.length > 0) {
           trackingInfo = trackingInfo.map((tracking) => {
@@ -255,35 +170,9 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { 
-        ...order, 
-        fulfillments: enrichedFulfillments, 
-        orderDeliveryStatus: isExternalDispatched ? `dispatched_by_${channel}` : orderDeliveryStatus, 
-        shippingCity, 
-        shippingState, 
-        shippingPincode,
-        channel,
-        isExternalDispatched,
-        externalChannel: isExternalDispatched ? channel : null,
-        rawDeliveryStatus,
-        trackingNumber,
-        trackingCompany
-      };
+      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
     }
-
-    return { 
-      ...order, 
-      orderDeliveryStatus: isExternalDispatched ? `dispatched_by_${channel}` : orderDeliveryStatus, 
-      shippingCity, 
-      shippingState, 
-      shippingPincode,
-      channel,
-      isExternalDispatched,
-      externalChannel: isExternalDispatched ? channel : null,
-      rawDeliveryStatus,
-      trackingNumber,
-      trackingCompany
-    };
+    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
   });
 
   return { orders: enhancedOrders, storeProducts };
@@ -387,16 +276,6 @@ export default function Orders() {
   const togglePincodePopover = useCallback(() => setPincodePopoverActive((a) => !a), []);
   const [pincodeFilter, setPincodeFilter] = useState("All Pincodes");
 
-  const uniqueChannels = useMemo(() => {
-    const channels = new Set();
-    orders.forEach(order => {
-      if (order.orderDeliveryStatus === 'dispatched_by_other_channel' && order.dispatchedChannelName) {
-        channels.add(order.dispatchedChannelName);
-      }
-    });
-    return Array.from(channels).sort();
-  }, [orders]);
-
   // Use store products directly (from loader) — only real catalog products appear here
   const uniqueProducts = useMemo(() => storeProducts, [storeProducts]);
 
@@ -460,9 +339,6 @@ export default function Orders() {
           statusMatches = (orderStatus === 'in_transit' || orderStatus === 'out_for_delivery');
         } else if (deliveryStatusFilter === "Failed") {
           statusMatches = (orderStatus === 'RTO' || orderStatus === 'rto_failed');
-        } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
-          const channel = deliveryStatusFilter.replace("Dispatched by ", "");
-          statusMatches = (orderStatus === 'dispatched_by_other_channel' && order.dispatchedChannelName === channel);
         }
         if (!statusMatches) return false;
       }
@@ -511,9 +387,7 @@ export default function Orders() {
         .join(' | ') || '';
 
       let trackingStatus = 'N/A';
-      if (order.isExternalDispatched) {
-        trackingStatus = `Dispatched by ${order.channel}`;
-      } else if (order.fulfillments && order.fulfillments.length > 0) {
+      if (order.fulfillments && order.fulfillments.length > 0) {
         const f = order.fulfillments[0];
         if (f.trackingInfo && f.trackingInfo.length > 0) {
           trackingStatus = f.trackingInfo[0].courierDeliveryStatus || 'in_transit';
@@ -605,11 +479,7 @@ export default function Orders() {
     { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
     { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
     { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
-    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } },
-    ...uniqueChannels.map(channel => ({
-      content: `Dispatched by ${channel}`,
-      onAction: () => { setDeliveryStatusFilter(`Dispatched by ${channel}`); toggleDeliveryStatusPopover(); }
-    }))
+    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
   ];
 
   // State / City / Pincode action lists
@@ -637,29 +507,18 @@ export default function Orders() {
     }))
   ];
 
-  const getStatusBadge = (status, channelName) => {
+  const getStatusBadge = (status) => {
     let bgColor = "#f3f4f6";
     let textColor = "#374151";
-    let text = status.replace(/_/g, " ");
 
-    if (status.startsWith("dispatched_by_")) {
-      bgColor = "#e0e7ff";
-      textColor = "#3730a3";
-    } else if (status === "delivered") {
-      bgColor = "#dcfce7"; textColor = "#166534";
-    } else if (status === "in_transit") {
-      bgColor = "#dbeafe"; textColor = "#1e40af";
-    } else if (status === "out_for_delivery") {
-      bgColor = "#fef08a"; textColor = "#854d0e";
-    } else if (status === "RTO" || status === "failed" || status === "rto_failed") {
-      bgColor = "#fee2e2"; textColor = "#991b1b";
-    }
+    if (status === "delivered") { bgColor = "#dcfce7"; textColor = "#166534"; }
+    else if (status === "in_transit") { bgColor = "#dbeafe"; textColor = "#1e40af"; }
+    else if (status === "out_for_delivery") { bgColor = "#fef08a"; textColor = "#854d0e"; }
+    else if (status === "RTO" || status === "failed" || status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; }
 
     return (
       <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize", whiteSpace: "nowrap" }}>
-        {status.startsWith("dispatched_by_")
-          ? `Dispatched by ${status.substring("dispatched_by_".length)}`
-          : status.replace(/_/g, " ")}
+        {status.replace(/_/g, " ")}
       </span>
     );
   };
@@ -834,9 +693,7 @@ export default function Orders() {
                         const customerName = order.customer ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer" : "No Customer";
 
                         let trackingStatus = "N/A";
-                        if (order.isExternalDispatched) {
-                          trackingStatus = `dispatched_by_${order.channel}`;
-                        } else if (order.fulfillments && order.fulfillments.length > 0) {
+                        if (order.fulfillments && order.fulfillments.length > 0) {
                           const f = order.fulfillments[0];
                           if (f.trackingInfo && f.trackingInfo.length > 0) {
                             trackingStatus = f.trackingInfo[0].courierDeliveryStatus || "in_transit";
@@ -861,7 +718,7 @@ export default function Orders() {
                                 </div>
                               ))}
                             </td>
-                            <td style={{ padding: "16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus, order.dispatchedChannelName) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
+                            <td style={{ padding: "16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
                             <td style={{ padding: "16px" }}>{getFulfillmentBadge(order.displayFulfillmentStatus)}</td>
                             <td style={{ padding: "16px", textAlign: "center" }}>
                               <div style={{ marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "#111827" }}>
