@@ -195,6 +195,22 @@ export const loader = async ({ request }) => {
                   company
                 }
               }
+              metafields(first: 30) {
+                edges {
+                  node {
+                    namespace
+                    key
+                    value
+                  }
+                }
+              }
+              returns(first: 5) {
+                edges {
+                  node {
+                    status
+                  }
+                }
+              }
             }
           }
         }
@@ -220,6 +236,24 @@ export const loader = async ({ request }) => {
 
     const connectorName = getThirdPartyConnectorName(order);
 
+    // ── Extract connector delivery metadata from metafields ──
+    let connectorLatestDeliveryDate = null;
+    if (connectorName && order.metafields?.edges) {
+      for (const { node: mf } of order.metafields.edges) {
+        const keyLower = (mf.key || '').toLowerCase();
+        // Match keys like "amazon_latest_delivery_date", "latest_delivery_date", "latest-delivery-date" etc.
+        if (keyLower.includes('latest') && keyLower.includes('delivery') && keyLower.includes('date')) {
+          connectorLatestDeliveryDate = mf.value || null;
+          break;
+        }
+      }
+    }
+
+    // ── Check if any return is closed (→ RTO for connector orders) ──
+    const connectorReturnClosed = connectorName
+      ? (order.returns?.edges || []).some(({ node: r }) => (r.status || '').toUpperCase() === 'CLOSED')
+      : false;
+
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
@@ -236,13 +270,130 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName };
+      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName, connectorLatestDeliveryDate, connectorReturnClosed };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName };
+    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName, connectorLatestDeliveryDate, connectorReturnClosed };
   });
 
   return { orders: enhancedOrders, storeProducts };
 };
+
+// ─── Connector Status Card ────────────────────────────────────────────────────
+function ConnectorStatusCard({ orders }) {
+  const now = new Date();
+
+  // Derive per-order connector status
+  const connectorOrders = orders.filter(o => {
+    if (!o.connectorName) return false;
+    const isConnectorNoTracking = o.orderDeliveryStatus !== 'delivered' && o.orderDeliveryStatus !== 'fulfilled' && o.orderDeliveryStatus !== 'rto_failed';
+    return isConnectorNoTracking || o.connectorLatestDeliveryDate || o.connectorReturnClosed;
+  });
+
+  const getConnectorStatus = (order) => {
+    if (order.connectorReturnClosed) return 'RTO / Failed';
+    const latestDelivery = order.connectorLatestDeliveryDate ? new Date(order.connectorLatestDeliveryDate) : null;
+    const isFulfilled = (order.displayFulfillmentStatus || '').toLowerCase() === 'fulfilled';
+    if (isFulfilled && latestDelivery) {
+      return now > latestDelivery ? 'Delivered' : 'In Transit';
+    }
+    if (latestDelivery && now > latestDelivery) return 'Overdue';
+    return 'Pending';
+  };
+
+  // Aggregate counts
+  const counts = { 'In Transit': 0, 'Delivered': 0, 'Overdue': 0, 'Pending': 0, 'RTO / Failed': 0 };
+  const byPlatform = {};
+
+  connectorOrders.forEach(order => {
+    const status = getConnectorStatus(order);
+    counts[status] = (counts[status] || 0) + 1;
+    const p = order.connectorName;
+    if (!byPlatform[p]) byPlatform[p] = { 'In Transit': 0, 'Delivered': 0, 'Overdue': 0, 'Pending': 0, 'RTO / Failed': 0, total: 0 };
+    byPlatform[p][status] = (byPlatform[p][status] || 0) + 1;
+    byPlatform[p].total++;
+  });
+
+  const pieData = [
+    { name: 'In Transit',   value: counts['In Transit'],   color: '#3b82f6' },
+    { name: 'Delivered',    value: counts['Delivered'],    color: '#10b981' },
+    { name: 'Overdue',      value: counts['Overdue'],      color: '#f59e0b' },
+    { name: 'Pending',      value: counts['Pending'],      color: '#8b5cf6' },
+    { name: 'RTO / Failed', value: counts['RTO / Failed'], color: '#ef4444' },
+  ].filter(d => d.value > 0);
+
+  const platforms = Object.entries(byPlatform);
+
+  if (connectorOrders.length === 0) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '13px' }}>
+        No connector orders in selected period
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1 }}>
+      {/* Pie chart */}
+      <div style={{ height: 260 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={pieData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%" cy="50%"
+              outerRadius={100}
+              isAnimationActive={false}
+              labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+              label={({ name, value, x, y, textAnchor }) => (
+                <text x={x} y={y} fill="#111827" fontSize="12" fontWeight="600" textAnchor={textAnchor} dominantBaseline="central">
+                  {name}: {value}
+                </text>
+              )}
+            >
+              {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+            </Pie>
+            <Tooltip
+              formatter={(value, name) => [value, name]}
+              contentStyle={{ fontSize: '12px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+              wrapperStyle={{ outline: 'none' }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Per-platform breakdown table */}
+      <div style={{ overflowX: 'auto', marginTop: '12px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>Platform</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>In Transit</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>Delivered</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>Overdue</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#8b5cf6', fontWeight: '600' }}>Pending</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>RTO</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {platforms.map(([platform, data]) => (
+              <tr key={platform} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                <td style={{ padding: '8px 12px', fontWeight: '600', color: '#111827' }}>{platform}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{data['In Transit'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>{data['Delivered'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>{data['Overdue'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#8b5cf6', fontWeight: '600' }}>{data['Pending'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>{data['RTO / Failed'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{data.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 const CustomTooltip = ({ active, payload, total }) => {
   if (active && payload && payload.length) {
@@ -1240,40 +1391,58 @@ export default function Index() {
             </div>
 
             <div style={styles.section}>
-              <div style={styles.cardTitleOuter}>
-                <h3 style={styles.cardTitle}>Tracking-Status History</h3>
-              </div>
-              <div style={{ width: '100%', height: 400, marginTop: '20px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={trackingStatusData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={140}
-                      isAnimationActive={false}
-                      labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
-                      label={({ name, value, x, y, textAnchor }) => (
-                        <text x={x} y={y} fill="#111827" fontSize="13" fontWeight="600" textAnchor={textAnchor} dominantBaseline="central">
-                          {name} : {value}
-                        </text>
-                      )}
-                    >
-                      {trackingStatusData.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={entry.color}
+              <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
+
+                {/* ── Left: Shopify Tracking-Status History ── */}
+                <div style={{ flex: '1 1 380px', minWidth: '320px' }}>
+                  <div style={styles.cardTitleOuter}>
+                    <h3 style={styles.cardTitle}>Tracking-Status History</h3>
+                  </div>
+                  <div style={{ width: '100%', height: 380, marginTop: '12px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={trackingStatusData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={120}
+                          isAnimationActive={false}
+                          labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                          label={({ name, value, x, y, textAnchor }) => (
+                            <text x={x} y={y} fill="#111827" fontSize="13" fontWeight="600" textAnchor={textAnchor} dominantBaseline="central">
+                              {name} : {value}
+                            </text>
+                          )}
+                        >
+                          {trackingStatusData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={<CustomTooltip total={pieTotal} />}
+                          wrapperStyle={{ outline: 'none' }}
                         />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={<CustomTooltip total={pieTotal} />}
-                      wrapperStyle={{ outline: 'none' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* ── Divider ── */}
+                <div style={{ width: '1px', backgroundColor: '#e5e7eb', flexShrink: 0 }} />
+
+                {/* ── Right: Connector Orders – Delivery Status ── */}
+                <div style={{ flex: '1 1 380px', minWidth: '320px' }}>
+                  <div style={styles.cardTitleOuter}>
+                    <h3 style={styles.cardTitle}>Connector Orders – Delivery Status</h3>
+                  </div>
+                  <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af' }}>
+                    Based on Latest Delivery Date from order details (Amazon / other platform)
+                  </div>
+                  <ConnectorStatusCard orders={filteredOrders} />
+                </div>
+
               </div>
             </div>
 
