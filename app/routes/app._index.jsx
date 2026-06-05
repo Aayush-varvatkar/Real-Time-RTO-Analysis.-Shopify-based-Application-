@@ -52,55 +52,54 @@ function getThirdPartyConnectorName(order) {
   const source = (order.sourceName || '').toLowerCase().trim();
   const tags = (order.tags || []).map(t => t.toLowerCase().trim());
 
-  const nativeSources = ['web', 'pos', 'shopify_draft_order', 'draft_order', 'iphone', 'android', 'mobile', 'subscription_contract', 'admin', 'shopify'];
-  const blacklistedTerms = [
-    'fastrr', 'bolt', 'razorpay', 'stripe', 'paypal', 'klarna', 'affirm', 'paytm', 'phonepe',
-    'shiprocket', 'delhivery', 'xpressbees', 'shadowfax', 'bluedart', 'dtdc',
-    'bad address', 'address', 'rto', 'failed', 'hold', 'cod', 'prepaid', 'verified', 'duplicate', 'pending',
-    'fulfilled', 'unfulfilled', 'returned', 'cancel', 'return', 'delivery', 'payment', 'shipping'
+  // Strict whitelist: only known ecommerce marketplace platforms
+  // connected via third-party multi-channel connectors (e.g. CedCommerce, Codisto, Linnworks)
+  // Each entry: [keyword_to_match, display_name]
+  const ECOMMERCE_PLATFORMS = [
+    ['amazon',       'Amazon'],
+    ['ebay',         'eBay'],
+    ['walmart',      'Walmart'],
+    ['etsy',         'Etsy'],
+    ['flipkart',     'Flipkart'],
+    ['meesho',       'Meesho'],
+    ['myntra',       'Myntra'],
+    ['nykaa',        'Nykaa'],
+    ['ajio',         'Ajio'],
+    ['jiomar',       'JioMart'],
+    ['snapdeal',     'Snapdeal'],
+    ['tatacliq',     'TataCliq'],
+    ['glowroad',     'GlowRoad'],
+    ['shopclues',    'ShopClues'],
+    ['paytmmall',    'Paytm Mall'],
+    ['shopee',       'Shopee'],
+    ['lazada',       'Lazada'],
+    ['tokopedia',    'Tokopedia'],
+    ['tiktokshop',   'TikTok Shop'],
+    ['tiktok shop',  'TikTok Shop'],
+    ['aliexpress',   'AliExpress'],
+    ['alibaba',      'Alibaba'],
+    ['noon',         'Noon'],
+    ['woocommerce',  'WooCommerce'],
+    ['magento',      'Magento'],
+    ['bigcommerce',  'BigCommerce'],
+    ['prestashop',   'PrestaShop'],
+    ['opencart',     'OpenCart'],
   ];
 
-  // Helper to check if a string contains any blacklisted terms
-  const isBlacklisted = (str) => {
-    return blacklistedTerms.some(term => str.includes(term));
-  };
-
-  // Helper to format/capitalize a name nicely
-  const formatName = (name) => {
-    if (!name) return '';
-    return name.split(/[\s-_]+/)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
-
-  // 1. If source name is not native, not blacklisted, and not numeric, treat as platform name
-  if (source && !nativeSources.includes(source) && !/^\d+$/.test(source)) {
-    if (!isBlacklisted(source)) {
-      return formatName(source);
+  // Check source name against whitelist (exact or substring match)
+  for (const [keyword, displayName] of ECOMMERCE_PLATFORMS) {
+    if (source.includes(keyword)) {
+      return displayName;
     }
   }
 
-  // 2. Check tags for any platform name after stripping generic terms
-  for (const rawTag of order.tags || []) {
-    const tag = rawTag.toLowerCase().trim();
-    if (isBlacklisted(tag)) continue;
-
-    // Strip generic connector terms to isolate the platform name
-    let cleaned = tag;
-    const genericTagTerms = ['connector', 'sync', 'imported', 'multi-channel', 'channel', 'integration'];
-    genericTagTerms.forEach(term => {
-      cleaned = cleaned.replace(term, '');
-    });
-    cleaned = cleaned.trim();
-
-    if (cleaned && !isBlacklisted(cleaned)) {
-      return formatName(cleaned);
+  // Check tags against whitelist
+  for (const tag of tags) {
+    for (const [keyword, displayName] of ECOMMERCE_PLATFORMS) {
+      if (tag.includes(keyword)) {
+        return displayName;
+      }
     }
-  }
-
-  // 3. Fallback: if source is not native and not blacklisted (even if numeric), classify generically
-  if (source && !nativeSources.includes(source) && !isBlacklisted(source)) {
-    return 'Multi-Channel Connector';
   }
 
   return null;
