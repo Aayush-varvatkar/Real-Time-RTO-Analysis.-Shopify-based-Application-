@@ -56,34 +56,34 @@ function getThirdPartyConnectorName(order) {
   // connected via third-party multi-channel connectors (e.g. CedCommerce, Codisto, Linnworks)
   // Each entry: [keyword_to_match, display_name]
   const ECOMMERCE_PLATFORMS = [
-    ['amazon',       'Amazon'],
-    ['ebay',         'eBay'],
-    ['walmart',      'Walmart'],
-    ['etsy',         'Etsy'],
-    ['flipkart',     'Flipkart'],
-    ['meesho',       'Meesho'],
-    ['myntra',       'Myntra'],
-    ['nykaa',        'Nykaa'],
-    ['ajio',         'Ajio'],
-    ['jiomar',       'JioMart'],
-    ['snapdeal',     'Snapdeal'],
-    ['tatacliq',     'TataCliq'],
-    ['glowroad',     'GlowRoad'],
-    ['shopclues',    'ShopClues'],
-    ['paytmmall',    'Paytm Mall'],
-    ['shopee',       'Shopee'],
-    ['lazada',       'Lazada'],
-    ['tokopedia',    'Tokopedia'],
-    ['tiktokshop',   'TikTok Shop'],
-    ['tiktok shop',  'TikTok Shop'],
-    ['aliexpress',   'AliExpress'],
-    ['alibaba',      'Alibaba'],
-    ['noon',         'Noon'],
-    ['woocommerce',  'WooCommerce'],
-    ['magento',      'Magento'],
-    ['bigcommerce',  'BigCommerce'],
-    ['prestashop',   'PrestaShop'],
-    ['opencart',     'OpenCart'],
+    ['amazon', 'Amazon'],
+    ['ebay', 'eBay'],
+    ['walmart', 'Walmart'],
+    ['etsy', 'Etsy'],
+    ['flipkart', 'Flipkart'],
+    ['meesho', 'Meesho'],
+    ['myntra', 'Myntra'],
+    ['nykaa', 'Nykaa'],
+    ['ajio', 'Ajio'],
+    ['jiomar', 'JioMart'],
+    ['snapdeal', 'Snapdeal'],
+    ['tatacliq', 'TataCliq'],
+    ['glowroad', 'GlowRoad'],
+    ['shopclues', 'ShopClues'],
+    ['paytmmall', 'Paytm Mall'],
+    ['shopee', 'Shopee'],
+    ['lazada', 'Lazada'],
+    ['tokopedia', 'Tokopedia'],
+    ['tiktokshop', 'TikTok Shop'],
+    ['tiktok shop', 'TikTok Shop'],
+    ['aliexpress', 'AliExpress'],
+    ['alibaba', 'Alibaba'],
+    ['noon', 'Noon'],
+    ['woocommerce', 'WooCommerce'],
+    ['magento', 'Magento'],
+    ['bigcommerce', 'BigCommerce'],
+    ['prestashop', 'PrestaShop'],
+    ['opencart', 'OpenCart'],
   ];
 
   // Check source name against whitelist (exact or substring match)
@@ -254,9 +254,9 @@ export const loader = async ({ request }) => {
     // "return-closed", "return_closed", "returned", "return closed"
     const connectorReturnClosed = connectorName
       ? (order.tags || []).some(tag => {
-          const t = tag.toLowerCase().replace(/[_\s]/g, '-');
-          return t === 'return-closed' || t === 'returned' || t === 'return-complete' || t === 'refund-complete';
-        })
+        const t = tag.toLowerCase().replace(/[_\s]/g, '-');
+        return t === 'return-closed' || t === 'returned' || t === 'return-complete' || t === 'refund-complete';
+      })
       : false;
 
     if (order.fulfillments && order.fulfillments.length > 0) {
@@ -319,10 +319,10 @@ function ConnectorStatusCard({ orders }) {
   });
 
   const pieData = [
-    { name: 'In Transit',   value: counts['In Transit'],   color: '#3b82f6' },
-    { name: 'Delivered',    value: counts['Delivered'],    color: '#10b981' },
-    { name: 'Overdue',      value: counts['Overdue'],      color: '#f59e0b' },
-    { name: 'Pending',      value: counts['Pending'],      color: '#8b5cf6' },
+    { name: 'In Transit', value: counts['In Transit'], color: '#3b82f6' },
+    { name: 'Delivered', value: counts['Delivered'], color: '#10b981' },
+    { name: 'Overdue', value: counts['Overdue'], color: '#f59e0b' },
+    { name: 'Pending', value: counts['Pending'], color: '#8b5cf6' },
     { name: 'RTO / Failed', value: counts['RTO / Failed'], color: '#ef4444' },
   ].filter(d => d.value > 0);
 
