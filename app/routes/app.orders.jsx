@@ -511,13 +511,8 @@ export default function Orders() {
         .join(' | ') || '';
 
       let trackingStatus = 'N/A';
-<<<<<<< HEAD
       if (order.isExternalDispatched) {
         trackingStatus = `Dispatched by ${order.channel}`;
-=======
-      if (order.orderDeliveryStatus === 'dispatched_by_other_channel') {
-        trackingStatus = `Dispatched by ${order.dispatchedChannelName}`;
->>>>>>> 4ea894b4b966776d012628dd827459b96e47c15d
       } else if (order.fulfillments && order.fulfillments.length > 0) {
         const f = order.fulfillments[0];
         if (f.trackingInfo && f.trackingInfo.length > 0) {
@@ -647,7 +642,6 @@ export default function Orders() {
     let textColor = "#374151";
     let text = status.replace(/_/g, " ");
 
-<<<<<<< HEAD
     if (status.startsWith("dispatched_by_")) {
       bgColor = "#e0e7ff";
       textColor = "#3730a3";
@@ -659,27 +653,13 @@ export default function Orders() {
       bgColor = "#fef08a"; textColor = "#854d0e";
     } else if (status === "RTO" || status === "failed" || status === "rto_failed") {
       bgColor = "#fee2e2"; textColor = "#991b1b";
-=======
-    if (status === "delivered") { bgColor = "#dcfce7"; textColor = "#166534"; }
-    else if (status === "in_transit") { bgColor = "#dbeafe"; textColor = "#1e40af"; }
-    else if (status === "out_for_delivery") { bgColor = "#fef08a"; textColor = "#854d0e"; }
-    else if (status === "RTO" || status === "failed" || status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; }
-    else if (status === "dispatched_by_other_channel") {
-      bgColor = "#e0e7ff";
-      textColor = "#3730a3";
-      text = `Dispatched by ${channelName || 'Other'}`;
->>>>>>> 4ea894b4b966776d012628dd827459b96e47c15d
     }
 
     return (
       <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize", whiteSpace: "nowrap" }}>
-<<<<<<< HEAD
         {status.startsWith("dispatched_by_")
           ? `Dispatched by ${status.substring("dispatched_by_".length)}`
           : status.replace(/_/g, " ")}
-=======
-        {text}
->>>>>>> 4ea894b4b966776d012628dd827459b96e47c15d
       </span>
     );
   };
@@ -854,13 +834,8 @@ export default function Orders() {
                         const customerName = order.customer ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer" : "No Customer";
 
                         let trackingStatus = "N/A";
-<<<<<<< HEAD
                         if (order.isExternalDispatched) {
                           trackingStatus = `dispatched_by_${order.channel}`;
-=======
-                        if (order.orderDeliveryStatus === 'dispatched_by_other_channel') {
-                           trackingStatus = "dispatched_by_other_channel";
->>>>>>> 4ea894b4b966776d012628dd827459b96e47c15d
                         } else if (order.fulfillments && order.fulfillments.length > 0) {
                           const f = order.fulfillments[0];
                           if (f.trackingInfo && f.trackingInfo.length > 0) {
