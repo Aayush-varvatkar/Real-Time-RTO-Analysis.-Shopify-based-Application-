@@ -204,13 +204,6 @@ export const loader = async ({ request }) => {
                   }
                 }
               }
-              returns(first: 5) {
-                edges {
-                  node {
-                    status
-                  }
-                }
-              }
             }
           }
         }
@@ -256,9 +249,14 @@ export const loader = async ({ request }) => {
       }
     }
 
-    // ── Check if any return is closed (→ RTO for connector orders) ──
+    // ── Check if return is closed for connector orders (detected via tags) ──
+    // Marketplace Connect and other connectors write tags like:
+    // "return-closed", "return_closed", "returned", "return closed"
     const connectorReturnClosed = connectorName
-      ? (order.returns?.edges || []).some(({ node: r }) => (r.status || '').toUpperCase() === 'CLOSED')
+      ? (order.tags || []).some(tag => {
+          const t = tag.toLowerCase().replace(/[_\s]/g, '-');
+          return t === 'return-closed' || t === 'returned' || t === 'return-complete' || t === 'refund-complete';
+        })
       : false;
 
     if (order.fulfillments && order.fulfillments.length > 0) {
