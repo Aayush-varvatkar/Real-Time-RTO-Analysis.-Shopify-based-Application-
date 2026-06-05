@@ -35,6 +35,48 @@ function normalizeDeliveryStatus(fulfillmentStatus) {
   return 'in_transit'; // Covers 'fulfilled', 'in_transit', 'pending', etc.
 }
 
+const isSupportedChannel = (channelName, shop) => {
+  if (!channelName) return true;
+  const lower = channelName.toLowerCase();
+  
+  // Standard supported channels and common checkouts
+  const standardSupported = [
+    'shopify',
+    'online store',
+    'goeasify',
+    'fastrr',
+    'draft',
+    'pos',
+    'point of sale',
+    'store-supported',
+    'local delivery',
+    'buy button',
+    'inbox',
+    'shop'
+  ];
+
+  if (standardSupported.some(item => lower.includes(item))) {
+    return true;
+  }
+
+  if (shop) {
+    const shopLower = shop.toLowerCase();
+    const shopNamePart = shopLower.split('.')[0];
+    const shopNameClean = shopNamePart.replace(/-/g, ' ');
+    if (lower.includes(shopNamePart) || lower.includes(shopNameClean)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const isDeliveryStatusUnavailable = (status) => {
+  if (!status) return true;
+  const statusLower = status.toLowerCase().trim();
+  return statusLower === '' || statusLower === 'tracking added' || statusLower === 'tracking_added';
+};
+
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
@@ -96,6 +138,14 @@ export const loader = async ({ request }) => {
                 firstName
                 lastName
               }
+              app {
+                name
+              }
+              channelInformation {
+                channelDefinition {
+                  channelName
+                }
+              }
               displayFinancialStatus
               displayFulfillmentStatus
               totalPriceSet {
@@ -147,6 +197,25 @@ export const loader = async ({ request }) => {
   }
 
   const enhancedOrders = allRawOrders.map((order) => {
+    const channel = order.channelInformation?.channelDefinition?.channelName || order.app?.name || 'Online Store';
+    const isSupported = isSupportedChannel(channel, shop);
+
+    // Determine raw delivery status
+    let rawDeliveryStatus = '';
+    let trackingNumber = '';
+    let trackingCompany = '';
+    if (order.fulfillments && order.fulfillments.length > 0) {
+      const firstFulfillment = order.fulfillments[0];
+      rawDeliveryStatus = firstFulfillment.displayStatus || firstFulfillment.status || '';
+      if (firstFulfillment.trackingInfo && firstFulfillment.trackingInfo.length > 0) {
+        trackingNumber = firstFulfillment.trackingInfo[0].number || '';
+        trackingCompany = firstFulfillment.trackingInfo[0].company || '';
+      }
+    }
+
+    const deliveryStatusUnavailable = isDeliveryStatusUnavailable(rawDeliveryStatus);
+    const isExternalDispatched = !isSupported && deliveryStatusUnavailable;
+
     let orderDeliveryStatus = 'unknown';
 
     // Normalize address fields
@@ -158,7 +227,13 @@ export const loader = async ({ request }) => {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
         const actualStatus = fulfillment.displayStatus || fulfillment.status || '';
-        const normalizedStatus = normalizeDeliveryStatus(actualStatus);
+        
+        let normalizedStatus;
+        if (isExternalDispatched) {
+          normalizedStatus = `dispatched_by_${channel}`;
+        } else {
+          normalizedStatus = normalizeDeliveryStatus(actualStatus);
+        }
 
         if (trackingInfo && trackingInfo.length > 0) {
           trackingInfo = trackingInfo.map((tracking) => {
@@ -170,9 +245,35 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+      return { 
+        ...order, 
+        fulfillments: enrichedFulfillments, 
+        orderDeliveryStatus: isExternalDispatched ? `dispatched_by_${channel}` : orderDeliveryStatus, 
+        shippingCity, 
+        shippingState, 
+        shippingPincode,
+        channel,
+        isExternalDispatched,
+        externalChannel: isExternalDispatched ? channel : null,
+        rawDeliveryStatus,
+        trackingNumber,
+        trackingCompany
+      };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+
+    return { 
+      ...order, 
+      orderDeliveryStatus: isExternalDispatched ? `dispatched_by_${channel}` : orderDeliveryStatus, 
+      shippingCity, 
+      shippingState, 
+      shippingPincode,
+      channel,
+      isExternalDispatched,
+      externalChannel: isExternalDispatched ? channel : null,
+      rawDeliveryStatus,
+      trackingNumber,
+      trackingCompany
+    };
   });
 
   return { orders: enhancedOrders, storeProducts };
@@ -387,7 +488,9 @@ export default function Orders() {
         .join(' | ') || '';
 
       let trackingStatus = 'N/A';
-      if (order.fulfillments && order.fulfillments.length > 0) {
+      if (order.isExternalDispatched) {
+        trackingStatus = `Dispatched by ${order.channel}`;
+      } else if (order.fulfillments && order.fulfillments.length > 0) {
         const f = order.fulfillments[0];
         if (f.trackingInfo && f.trackingInfo.length > 0) {
           trackingStatus = f.trackingInfo[0].courierDeliveryStatus || 'in_transit';
@@ -511,14 +614,24 @@ export default function Orders() {
     let bgColor = "#f3f4f6";
     let textColor = "#374151";
 
-    if (status === "delivered") { bgColor = "#dcfce7"; textColor = "#166534"; }
-    else if (status === "in_transit") { bgColor = "#dbeafe"; textColor = "#1e40af"; }
-    else if (status === "out_for_delivery") { bgColor = "#fef08a"; textColor = "#854d0e"; }
-    else if (status === "RTO" || status === "failed" || status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; }
+    if (status.startsWith("dispatched_by_")) {
+      bgColor = "#e0e7ff";
+      textColor = "#3730a3";
+    } else if (status === "delivered") {
+      bgColor = "#dcfce7"; textColor = "#166534";
+    } else if (status === "in_transit") {
+      bgColor = "#dbeafe"; textColor = "#1e40af";
+    } else if (status === "out_for_delivery") {
+      bgColor = "#fef08a"; textColor = "#854d0e";
+    } else if (status === "RTO" || status === "failed" || status === "rto_failed") {
+      bgColor = "#fee2e2"; textColor = "#991b1b";
+    }
 
     return (
       <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize", whiteSpace: "nowrap" }}>
-        {status.replace(/_/g, " ")}
+        {status.startsWith("dispatched_by_")
+          ? `Dispatched by ${status.substring("dispatched_by_".length)}`
+          : status.replace(/_/g, " ")}
       </span>
     );
   };
@@ -693,7 +806,9 @@ export default function Orders() {
                         const customerName = order.customer ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer" : "No Customer";
 
                         let trackingStatus = "N/A";
-                        if (order.fulfillments && order.fulfillments.length > 0) {
+                        if (order.isExternalDispatched) {
+                          trackingStatus = `dispatched_by_${order.channel}`;
+                        } else if (order.fulfillments && order.fulfillments.length > 0) {
                           const f = order.fulfillments[0];
                           if (f.trackingInfo && f.trackingInfo.length > 0) {
                             trackingStatus = f.trackingInfo[0].courierDeliveryStatus || "in_transit";

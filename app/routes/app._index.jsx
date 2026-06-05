@@ -48,6 +48,48 @@ function normalizeDeliveryStatus(fulfillmentStatus) {
   return 'in_transit'; // Covers 'fulfilled', 'in_transit', 'pending', etc.
 }
 
+const isSupportedChannel = (channelName, shop) => {
+  if (!channelName) return true;
+  const lower = channelName.toLowerCase();
+  
+  // Standard supported channels and common checkouts
+  const standardSupported = [
+    'shopify',
+    'online store',
+    'goeasify',
+    'fastrr',
+    'draft',
+    'pos',
+    'point of sale',
+    'store-supported',
+    'local delivery',
+    'buy button',
+    'inbox',
+    'shop'
+  ];
+
+  if (standardSupported.some(item => lower.includes(item))) {
+    return true;
+  }
+
+  if (shop) {
+    const shopLower = shop.toLowerCase();
+    const shopNamePart = shopLower.split('.')[0];
+    const shopNameClean = shopNamePart.replace(/-/g, ' ');
+    if (lower.includes(shopNamePart) || lower.includes(shopNameClean)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const isDeliveryStatusUnavailable = (status) => {
+  if (!status) return true;
+  const statusLower = status.toLowerCase().trim();
+  return statusLower === '' || statusLower === 'tracking added' || statusLower === 'tracking_added';
+};
+
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
@@ -106,6 +148,14 @@ export const loader = async ({ request }) => {
               name
               createdAt
               displayFulfillmentStatus
+              app {
+                name
+              }
+              channelInformation {
+                channelDefinition {
+                  channelName
+                }
+              }
               totalPriceSet {
                 shopMoney {
                   amount
@@ -152,6 +202,25 @@ export const loader = async ({ request }) => {
   }
 
   const enhancedOrders = allRawOrders.map((order) => {
+    const channel = order.channelInformation?.channelDefinition?.channelName || order.app?.name || 'Online Store';
+    const isSupported = isSupportedChannel(channel, shop);
+
+    // Determine raw delivery status
+    let rawDeliveryStatus = '';
+    let trackingNumber = '';
+    let trackingCompany = '';
+    if (order.fulfillments && order.fulfillments.length > 0) {
+      const firstFulfillment = order.fulfillments[0];
+      rawDeliveryStatus = firstFulfillment.displayStatus || firstFulfillment.status || '';
+      if (firstFulfillment.trackingInfo && firstFulfillment.trackingInfo.length > 0) {
+        trackingNumber = firstFulfillment.trackingInfo[0].number || '';
+        trackingCompany = firstFulfillment.trackingInfo[0].company || '';
+      }
+    }
+
+    const deliveryStatusUnavailable = isDeliveryStatusUnavailable(rawDeliveryStatus);
+    const isExternalDispatched = !isSupported && deliveryStatusUnavailable;
+
     let orderDeliveryStatus = 'unknown';
 
     // Normalize address fields
@@ -163,7 +232,13 @@ export const loader = async ({ request }) => {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
         const actualStatus = fulfillment.displayStatus || fulfillment.status || '';
-        const normalizedStatus = normalizeDeliveryStatus(actualStatus);
+        
+        let normalizedStatus;
+        if (isExternalDispatched) {
+          normalizedStatus = 'external_dispatched';
+        } else {
+          normalizedStatus = normalizeDeliveryStatus(actualStatus);
+        }
 
         if (trackingInfo && trackingInfo.length > 0) {
           trackingInfo = trackingInfo.map((tracking) => {
@@ -175,12 +250,78 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+      return { 
+        ...order, 
+        fulfillments: enrichedFulfillments, 
+        orderDeliveryStatus: isExternalDispatched ? 'external_dispatched' : orderDeliveryStatus, 
+        shippingCity, 
+        shippingState, 
+        shippingPincode,
+        channel,
+        isExternalDispatched,
+        externalChannel: isExternalDispatched ? channel : null,
+        rawDeliveryStatus,
+        trackingNumber,
+        trackingCompany
+      };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+
+    return { 
+      ...order, 
+      orderDeliveryStatus: isExternalDispatched ? 'external_dispatched' : orderDeliveryStatus, 
+      shippingCity, 
+      shippingState, 
+      shippingPincode,
+      channel,
+      isExternalDispatched,
+      externalChannel: isExternalDispatched ? channel : null,
+      rawDeliveryStatus,
+      trackingNumber,
+      trackingCompany
+    };
   });
 
-  return { orders: enhancedOrders, storeProducts };
+  const externalChannelCounts = {};
+  let inTransitCount = 0;
+  let deliveredCount = 0;
+  let rtoCount = 0;
+  let pendingCount = 0;
+
+  enhancedOrders.forEach(order => {
+    if (order.isExternalDispatched) {
+      externalChannelCounts[order.channel] = (externalChannelCounts[order.channel] || 0) + 1;
+    } else {
+      if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
+        deliveredCount++;
+      } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
+        inTransitCount++;
+      } else if (order.orderDeliveryStatus === 'rto_failed') {
+        rtoCount++;
+      } else {
+        pendingCount++;
+      }
+    }
+  });
+
+  const externalDispatchedChannels = Object.entries(externalChannelCounts).map(([channel, count]) => ({
+    channel,
+    label: `Dispatched by ${channel}`,
+    count
+  }));
+
+  const deliveryStatusBreakdown = {
+    inTransit: inTransitCount,
+    delivered: deliveredCount,
+    rto: rtoCount,
+    pending: pendingCount
+  };
+
+  return { 
+    orders: enhancedOrders, 
+    storeProducts,
+    deliveryStatusBreakdown,
+    externalDispatchedChannels
+  };
 };
 
 const CustomTooltip = ({ active, payload, total }) => {
@@ -664,8 +805,15 @@ export default function Index() {
     let fulfilled = 0;
     let failed = 0;
     let unfulfilled = 0;
+    let totalNormalOrders = 0;
 
     filteredOrders.forEach(order => {
+      // Exclude unsupported external channel orders from normal metrics
+      if (order.isExternalDispatched) {
+        return;
+      }
+
+      totalNormalOrders++;
       const status = (order.displayFulfillmentStatus || '').toLowerCase();
       if (status !== 'fulfilled') unfulfilled++;
 
@@ -718,6 +866,11 @@ export default function Index() {
 
     // Populate data from orders
     filteredOrders.forEach(order => {
+      // Exclude unsupported external channel orders from delivery status charts
+      if (order.isExternalDispatched) {
+        return;
+      }
+
       const orderDate = new Date(order.createdAt);
       const dateStr = `${String(orderDate.getDate()).padStart(2, '0')}/${String(orderDate.getMonth() + 1).padStart(2, '0')}/${String(orderDate.getFullYear()).slice(-2)}`;
 
@@ -754,6 +907,11 @@ export default function Index() {
     let inTransit = 0;
 
     filteredOrders.forEach(order => {
+      // Exclude unsupported external channel orders from tracking status charts
+      if (order.isExternalDispatched) {
+        return;
+      }
+
       const deliveryStatus = order.orderDeliveryStatus;
 
       if (deliveryStatus === 'delivered' || deliveryStatus === 'fulfilled') {
@@ -780,6 +938,11 @@ export default function Index() {
     const groupBy = (keyFn) => {
       const map = {};
       filteredOrders.forEach(order => {
+        // Exclude unsupported external channel orders from RTO analysis
+        if (order.isExternalDispatched) {
+          return;
+        }
+
         const key = keyFn(order);
         if (!key) return;
         if (!map[key]) map[key] = { delivered: 0, rto: 0, total: 0 };
@@ -812,6 +975,21 @@ export default function Index() {
         return n || null;
       }),
     };
+  }, [filteredOrders]);
+
+  // Compute External Dispatched Channels dynamically based on filters
+  const filteredExternalDispatchedChannels = useMemo(() => {
+    const channelCounts = {};
+    filteredOrders.forEach(order => {
+      if (order.isExternalDispatched && order.channel) {
+        channelCounts[order.channel] = (channelCounts[order.channel] || 0) + 1;
+      }
+    });
+    return Object.entries(channelCounts).map(([channel, count]) => ({
+      channel,
+      label: `Dispatched by ${channel}`,
+      count
+    })).sort((a, b) => b.count - a.count);
   }, [filteredOrders]);
 
   const handleDateSelection = useCallback(
@@ -1040,6 +1218,25 @@ export default function Index() {
                 </div>
               </Popover>
             </InlineStack>
+
+            {filteredExternalDispatchedChannels.length > 0 && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                gap: "16px",
+                marginTop: "16px",
+                marginBottom: "8px"
+              }}>
+                {filteredExternalDispatchedChannels.map((item) => (
+                  <div key={item.channel} style={styles.card}>
+                    <div style={styles.cardTitleOuter}>
+                      <h3 style={styles.cardTitle}>{item.label}</h3>
+                    </div>
+                    <p style={{ ...styles.cardValue, color: "#6366f1" }}>{item.count}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div style={styles.grid}>
               <div style={styles.card}>
