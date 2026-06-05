@@ -35,6 +35,42 @@ function normalizeDeliveryStatus(fulfillmentStatus) {
   return 'in_transit'; // Covers 'fulfilled', 'in_transit', 'pending', etc.
 }
 
+function getThirdPartyConnectorName(order) {
+  const source = (order.sourceName || '').toLowerCase();
+  const tags = (order.tags || []).map(t => t.toLowerCase());
+
+  if (source.includes('amazon') || tags.some(t => t.includes('amazon'))) {
+    return 'Amazon';
+  }
+  if (source.includes('ebay') || tags.some(t => t.includes('ebay'))) {
+    return 'eBay';
+  }
+  if (source.includes('walmart') || tags.some(t => t.includes('walmart'))) {
+    return 'Walmart';
+  }
+
+  const nativeSources = ['web', 'pos', 'shopify_draft_order', 'draft_order', 'iphone', 'android', 'mobile', 'subscription_contract', 'admin', 'shopify'];
+  if (source && !nativeSources.includes(source)) {
+    if (/^\d+$/.test(source)) {
+      const platformTag = order.tags?.find(t => {
+        const tl = t.toLowerCase();
+        return !tl.includes('connector') && !tl.includes('sync') && tl !== 'imported';
+      });
+      return platformTag || 'Multi-Channel Connector';
+    }
+    return source.charAt(0).toUpperCase() + source.slice(1);
+  }
+
+  for (const tag of order.tags || []) {
+    const tl = tag.toLowerCase();
+    if (tl.includes('connector') || tl.includes('sync') || tl.includes('multi-channel')) {
+      return 'Multi-Channel Connector';
+    }
+  }
+
+  return null;
+}
+
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
@@ -104,6 +140,8 @@ export const loader = async ({ request }) => {
                   currencyCode
                 }
               }
+              sourceName
+              tags
               shippingAddress {
                 city
                 province
@@ -154,6 +192,8 @@ export const loader = async ({ request }) => {
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
 
+    const connectorName = getThirdPartyConnectorName(order);
+
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
@@ -170,9 +210,9 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName };
   });
 
   return { orders: enhancedOrders, storeProducts };
@@ -336,9 +376,14 @@ export default function Orders() {
         if (deliveryStatusFilter === "Delivered") {
           statusMatches = (orderStatus === 'delivered' || orderStatus === 'fulfilled');
         } else if (deliveryStatusFilter === "In-Transit") {
-          statusMatches = (orderStatus === 'in_transit' || orderStatus === 'out_for_delivery');
+          const isConnectorNoTracking = order.connectorName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'RTO' && orderStatus !== 'rto_failed');
+          statusMatches = !isConnectorNoTracking && (orderStatus === 'in_transit' || orderStatus === 'out_for_delivery');
         } else if (deliveryStatusFilter === "Failed") {
           statusMatches = (orderStatus === 'RTO' || orderStatus === 'rto_failed');
+        } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
+          const connName = deliveryStatusFilter.replace("Dispatched by ", "");
+          const isConnectorNoTracking = order.connectorName === connName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'RTO' && orderStatus !== 'rto_failed');
+          statusMatches = isConnectorNoTracking;
         }
         if (!statusMatches) return false;
       }
@@ -387,7 +432,10 @@ export default function Orders() {
         .join(' | ') || '';
 
       let trackingStatus = 'N/A';
-      if (order.fulfillments && order.fulfillments.length > 0) {
+      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'RTO' && order.orderDeliveryStatus !== 'rto_failed');
+      if (isConnectorNoTracking) {
+        trackingStatus = `Dispatched by ${order.connectorName}`;
+      } else if (order.fulfillments && order.fulfillments.length > 0) {
         const f = order.fulfillments[0];
         if (f.trackingInfo && f.trackingInfo.length > 0) {
           trackingStatus = f.trackingInfo[0].courierDeliveryStatus || 'in_transit';
@@ -475,12 +523,35 @@ export default function Orders() {
     </Button>
   );
 
-  const deliveryStatusOptions = [
-    { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
-    { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
-    { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
-    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
-  ];
+  const uniqueConnectors = useMemo(() => {
+    const names = new Set();
+    orders.forEach(o => {
+      const name = getThirdPartyConnectorName(o);
+      if (name) names.add(name);
+    });
+    return Array.from(names).sort();
+  }, [orders]);
+
+  const deliveryStatusOptions = useMemo(() => {
+    const options = [
+      { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
+      { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
+      { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
+      { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
+    ];
+
+    uniqueConnectors.forEach(conn => {
+      options.push({
+        content: `Dispatched by ${conn}`,
+        onAction: () => {
+          setDeliveryStatusFilter(`Dispatched by ${conn}`);
+          toggleDeliveryStatusPopover();
+        }
+      });
+    });
+
+    return options;
+  }, [uniqueConnectors]);
 
   // State / City / Pincode action lists
   const stateOptions = [
@@ -515,10 +586,16 @@ export default function Orders() {
     else if (status === "in_transit") { bgColor = "#dbeafe"; textColor = "#1e40af"; }
     else if (status === "out_for_delivery") { bgColor = "#fef08a"; textColor = "#854d0e"; }
     else if (status === "RTO" || status === "failed" || status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; }
+    else if (status.startsWith("dispatched_by_")) {
+      bgColor = "#e0f2fe"; // sky blue
+      textColor = "#0369a1"; // dark blue
+    }
 
     return (
-      <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", textTransform: "capitalize", whiteSpace: "nowrap" }}>
-        {status.replace(/_/g, " ")}
+      <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
+        {status.startsWith("dispatched_by_") 
+          ? `Dispatched by ${status.replace("dispatched_by_", "").toUpperCase()}`
+          : status.replace(/_/g, " ")}
       </span>
     );
   };
@@ -693,7 +770,10 @@ export default function Orders() {
                         const customerName = order.customer ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer" : "No Customer";
 
                         let trackingStatus = "N/A";
-                        if (order.fulfillments && order.fulfillments.length > 0) {
+                        const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'RTO' && order.orderDeliveryStatus !== 'rto_failed');
+                        if (isConnectorNoTracking) {
+                          trackingStatus = `dispatched_by_${order.connectorName.toLowerCase()}`;
+                        } else if (order.fulfillments && order.fulfillments.length > 0) {
                           const f = order.fulfillments[0];
                           if (f.trackingInfo && f.trackingInfo.length > 0) {
                             trackingStatus = f.trackingInfo[0].courierDeliveryStatus || "in_transit";

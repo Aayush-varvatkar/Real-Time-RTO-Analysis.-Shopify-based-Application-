@@ -48,6 +48,42 @@ function normalizeDeliveryStatus(fulfillmentStatus) {
   return 'in_transit'; // Covers 'fulfilled', 'in_transit', 'pending', etc.
 }
 
+function getThirdPartyConnectorName(order) {
+  const source = (order.sourceName || '').toLowerCase();
+  const tags = (order.tags || []).map(t => t.toLowerCase());
+
+  if (source.includes('amazon') || tags.some(t => t.includes('amazon'))) {
+    return 'Amazon';
+  }
+  if (source.includes('ebay') || tags.some(t => t.includes('ebay'))) {
+    return 'eBay';
+  }
+  if (source.includes('walmart') || tags.some(t => t.includes('walmart'))) {
+    return 'Walmart';
+  }
+
+  const nativeSources = ['web', 'pos', 'shopify_draft_order', 'draft_order', 'iphone', 'android', 'mobile', 'subscription_contract', 'admin', 'shopify'];
+  if (source && !nativeSources.includes(source)) {
+    if (/^\d+$/.test(source)) {
+      const platformTag = order.tags?.find(t => {
+        const tl = t.toLowerCase();
+        return !tl.includes('connector') && !tl.includes('sync') && tl !== 'imported';
+      });
+      return platformTag || 'Multi-Channel Connector';
+    }
+    return source.charAt(0).toUpperCase() + source.slice(1);
+  }
+
+  for (const tag of order.tags || []) {
+    const tl = tag.toLowerCase();
+    if (tl.includes('connector') || tl.includes('sync') || tl.includes('multi-channel')) {
+      return 'Multi-Channel Connector';
+    }
+  }
+
+  return null;
+}
+
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
@@ -111,6 +147,8 @@ export const loader = async ({ request }) => {
                   amount
                 }
               }
+              sourceName
+              tags
               shippingAddress {
                 city
                 province
@@ -159,6 +197,8 @@ export const loader = async ({ request }) => {
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
 
+    const connectorName = getThirdPartyConnectorName(order);
+
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
         let trackingInfo = fulfillment.trackingInfo;
@@ -175,9 +215,9 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode };
+    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName };
   });
 
   return { orders: enhancedOrders, storeProducts };
@@ -631,9 +671,14 @@ export default function Index() {
         if (deliveryStatusFilter === "Delivered") {
           statusMatches = (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled');
         } else if (deliveryStatusFilter === "In-Transit") {
-          statusMatches = (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery');
+          const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+          statusMatches = !isConnectorNoTracking && (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery');
         } else if (deliveryStatusFilter === "Failed") {
           statusMatches = (order.orderDeliveryStatus === 'rto_failed');
+        } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
+          const connName = deliveryStatusFilter.replace("Dispatched by ", "");
+          const isConnectorNoTracking = order.connectorName === connName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+          statusMatches = isConnectorNoTracking;
         }
         if (!statusMatches) return false;
       }
@@ -664,19 +709,26 @@ export default function Index() {
     let fulfilled = 0;
     let failed = 0;
     let unfulfilled = 0;
+    const connectorCounts = {};
 
     filteredOrders.forEach(order => {
       const status = (order.displayFulfillmentStatus || '').toLowerCase();
       if (status !== 'fulfilled') unfulfilled++;
 
-      if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
-        fulfilled++;
-      } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
-        shipped++;
-      } else if (order.orderDeliveryStatus === 'rto_failed') {
-        failed++;
+      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+
+      if (isConnectorNoTracking) {
+        connectorCounts[order.connectorName] = (connectorCounts[order.connectorName] || 0) + 1;
       } else {
-        pending++; // If unknown or anything else, consider pending
+        if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
+          fulfilled++;
+        } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
+          shipped++;
+        } else if (order.orderDeliveryStatus === 'rto_failed') {
+          failed++;
+        } else {
+          pending++; // If unknown or anything else, consider pending
+        }
       }
     });
 
@@ -686,7 +738,8 @@ export default function Index() {
       shipped,
       fulfilled,
       failed,
-      unfulfilled
+      unfulfilled,
+      connectorCounts
     };
   }, [filteredOrders]);
 
@@ -718,6 +771,11 @@ export default function Index() {
 
     // Populate data from orders
     filteredOrders.forEach(order => {
+      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+      if (isConnectorNoTracking) {
+        return; // Exclude from charts/graphs
+      }
+
       const orderDate = new Date(order.createdAt);
       const dateStr = `${String(orderDate.getDate()).padStart(2, '0')}/${String(orderDate.getMonth() + 1).padStart(2, '0')}/${String(orderDate.getFullYear()).slice(-2)}`;
 
@@ -754,6 +812,11 @@ export default function Index() {
     let inTransit = 0;
 
     filteredOrders.forEach(order => {
+      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+      if (isConnectorNoTracking) {
+        return; // Exclude from charts/graphs
+      }
+
       const deliveryStatus = order.orderDeliveryStatus;
 
       if (deliveryStatus === 'delivered' || deliveryStatus === 'fulfilled') {
@@ -780,6 +843,11 @@ export default function Index() {
     const groupBy = (keyFn) => {
       const map = {};
       filteredOrders.forEach(order => {
+        const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+        if (isConnectorNoTracking) {
+          return; // Exclude from charts/graphs
+        }
+
         const key = keyFn(order);
         if (!key) return;
         if (!map[key]) map[key] = { delivered: 0, rto: 0, total: 0 };
@@ -858,12 +926,35 @@ export default function Index() {
     </Button>
   );
 
-  const deliveryStatusOptions = [
-    { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
-    { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
-    { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
-    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
-  ];
+  const uniqueConnectors = useMemo(() => {
+    const names = new Set();
+    orders.forEach(o => {
+      const name = getThirdPartyConnectorName(o);
+      if (name) names.add(name);
+    });
+    return Array.from(names).sort();
+  }, [orders]);
+
+  const deliveryStatusOptions = useMemo(() => {
+    const options = [
+      { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
+      { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
+      { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
+      { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
+    ];
+
+    uniqueConnectors.forEach(conn => {
+      options.push({
+        content: `Dispatched by ${conn}`,
+        onAction: () => {
+          setDeliveryStatusFilter(`Dispatched by ${conn}`);
+          toggleDeliveryStatusPopover();
+        }
+      });
+    });
+
+    return options;
+  }, [uniqueConnectors]);
 
   // State / City / Pincode action lists
   const stateOptions = [
@@ -891,7 +982,7 @@ export default function Index() {
   ];
 
   const styles = {
-    grid: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginTop: "32px", marginBottom: "32px" },
+    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginTop: "32px", marginBottom: "32px" },
     card: {
       backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: "8px",
       boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
@@ -1072,6 +1163,14 @@ export default function Index() {
                 </div>
                 <p style={styles.cardValue}>{metrics.unfulfilled}</p>
               </div>
+              {Object.entries(metrics.connectorCounts).map(([connectorName, count]) => (
+                <div key={connectorName} style={styles.card}>
+                  <div style={styles.cardTitleOuter}>
+                    <h3 style={styles.cardTitle}>Dispatched by {connectorName}</h3>
+                  </div>
+                  <p style={{ ...styles.cardValue, color: "#2563eb" }}>{count}</p>
+                </div>
+              ))}
             </div>
 
             <div style={styles.section}>
