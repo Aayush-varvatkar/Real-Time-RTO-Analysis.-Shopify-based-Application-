@@ -219,6 +219,13 @@ export const loader = async ({ request }) => {
     );
 
     const json = await response.json();
+
+    // Guard: if Shopify returns errors (e.g. missing scope), stop and return what we have
+    if (!json.data || !json.data.orders) {
+      console.error('[RTO-Predictor] Orders query error:', JSON.stringify(json.errors || json));
+      break;
+    }
+
     const ordersPage = json.data.orders;
 
     allRawOrders.push(...ordersPage.edges.map((edge) => edge.node));
