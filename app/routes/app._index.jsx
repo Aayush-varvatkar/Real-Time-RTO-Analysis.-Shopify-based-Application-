@@ -155,6 +155,9 @@ export const loader = async ({ request }) => {
                 channelDefinition {
                   channelName
                 }
+                app {
+                  title
+                }
               }
               totalPriceSet {
                 shopMoney {
@@ -227,6 +230,13 @@ export const loader = async ({ request }) => {
     const shippingCity = (order.shippingAddress?.city || '').trim();
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
+
+    // Determine channel — use app.title from channelInformation (confirmed field)
+    const appTitle = order.channelInformation?.app?.title || '';
+    const nativeApps = ["online store", "point of sale", "draft orders", "shopify", "shop", "shopify draft orders"];
+    const isShopify = !appTitle || nativeApps.some(n => appTitle.toLowerCase().includes(n));
+
+    const dispatchedChannelName = isShopify ? '' : (appTitle || 'Other Channel');
 
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
@@ -355,6 +365,7 @@ const CustomBarTooltip = ({ active, payload, label }) => {
       { key: "Fulfilled", label: "Fulfilled", defaultColor: "#319e9a" },
       { key: "Delivered", label: "Delivered", defaultColor: "#31ff7dc3" },
       { key: "In-Transit", label: "In-Transit", defaultColor: "#5052526a" },
+      { key: "Dispatched by Channel", label: "Dispatched by Channel", defaultColor: "#818cf8" },
       { key: "Failed", label: "Failed", defaultColor: "#ef4444" }
     ];
 
@@ -404,6 +415,7 @@ const renderCustomLegend = (props) => {
     { value: "Fulfilled", color: "#319e9a" },
     { value: "Delivered", color: "#31ff7da0" },
     { value: "In-Transit", color: "#5052526a" },
+    { value: "Dispatched by Channel", color: "#818cf8" },
     { value: "Failed", color: "#ef4444" }
   ];
 
@@ -859,6 +871,7 @@ export default function Index() {
         "Fulfilled": 0,
         "Delivered": 0,
         "In-Transit": 0,
+        "Dispatched by Channel": 0,
         "Failed": 0
       };
       current.setDate(current.getDate() + 1);
@@ -889,6 +902,8 @@ export default function Index() {
         const deliveryStatus = order.orderDeliveryStatus;
         if (deliveryStatus === 'delivered' || deliveryStatus === 'fulfilled') {
           dataMap[dateStr]["Delivered"]++;
+        } else if (deliveryStatus === 'dispatched_by_other_channel') {
+          dataMap[dateStr]["Dispatched by Channel"]++;
         } else if (deliveryStatus === 'in_transit' || deliveryStatus === 'out_for_delivery') {
           dataMap[dateStr]["In-Transit"]++;
         } else if (deliveryStatus === 'rto_failed') {
@@ -905,6 +920,7 @@ export default function Index() {
     let delivered = 0;
     let rto = 0;
     let inTransit = 0;
+    let dispatched = 0;
 
     filteredOrders.forEach(order => {
       // Exclude unsupported external channel orders from tracking status charts
@@ -918,6 +934,8 @@ export default function Index() {
         delivered++;
       } else if (deliveryStatus === 'rto_failed') {
         rto++;
+      } else if (deliveryStatus === 'dispatched_by_other_channel') {
+        dispatched++;
       } else if (deliveryStatus === 'in_transit' || deliveryStatus === 'out_for_delivery') {
         inTransit++;
       }
@@ -927,6 +945,7 @@ export default function Index() {
       { name: 'Delivered', value: delivered, color: '#059669' },
       { name: 'RTO', value: rto, color: '#ef4444' },
       { name: 'In-Transit', value: inTransit, color: '#00a896' },
+      { name: 'Dispatched by Channel', value: dispatched, color: '#818cf8' },
     ].filter(d => d.value > 0);
   }, [filteredOrders]);
 
@@ -1040,7 +1059,7 @@ export default function Index() {
     { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
     { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
     { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
-    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
+    { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } },
   ];
 
   // State / City / Pincode action lists
@@ -1069,7 +1088,7 @@ export default function Index() {
   ];
 
   const styles = {
-    grid: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginTop: "32px", marginBottom: "32px" },
+    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginTop: "32px", marginBottom: "32px" },
     card: {
       backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: "8px",
       boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
@@ -1310,6 +1329,7 @@ export default function Index() {
                     <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#319e9a" barSize={6} />
                     <Bar dataKey="Delivered" stackId="logistics" fill="#31ff7da7" barSize={6} />
                     <Bar dataKey="In-Transit" stackId="logistics" fill="#5052526a" barSize={6} />
+                    <Bar dataKey="Dispatched by Channel" stackId="logistics" fill="#818cf8" barSize={6} />
                     <Bar dataKey="Failed" stackId="logistics" fill="#ef4444" barSize={6} />
                   </BarChart>
                 </ResponsiveContainer>
