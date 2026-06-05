@@ -49,36 +49,58 @@ function normalizeDeliveryStatus(fulfillmentStatus) {
 }
 
 function getThirdPartyConnectorName(order) {
-  const source = (order.sourceName || '').toLowerCase();
-  const tags = (order.tags || []).map(t => t.toLowerCase());
-
-  if (source.includes('amazon') || tags.some(t => t.includes('amazon'))) {
-    return 'Amazon';
-  }
-  if (source.includes('ebay') || tags.some(t => t.includes('ebay'))) {
-    return 'eBay';
-  }
-  if (source.includes('walmart') || tags.some(t => t.includes('walmart'))) {
-    return 'Walmart';
-  }
+  const source = (order.sourceName || '').toLowerCase().trim();
+  const tags = (order.tags || []).map(t => t.toLowerCase().trim());
 
   const nativeSources = ['web', 'pos', 'shopify_draft_order', 'draft_order', 'iphone', 'android', 'mobile', 'subscription_contract', 'admin', 'shopify'];
-  if (source && !nativeSources.includes(source)) {
-    if (/^\d+$/.test(source)) {
-      const platformTag = order.tags?.find(t => {
-        const tl = t.toLowerCase();
-        return !tl.includes('connector') && !tl.includes('sync') && tl !== 'imported';
-      });
-      return platformTag || 'Multi-Channel Connector';
+  const blacklistedTerms = [
+    'fastrr', 'bolt', 'razorpay', 'stripe', 'paypal', 'klarna', 'affirm', 'paytm', 'phonepe',
+    'shiprocket', 'delhivery', 'xpressbees', 'shadowfax', 'bluedart', 'dtdc',
+    'bad address', 'address', 'rto', 'failed', 'hold', 'cod', 'prepaid', 'verified', 'duplicate', 'pending',
+    'fulfilled', 'unfulfilled', 'returned', 'cancel', 'return', 'delivery', 'payment', 'shipping'
+  ];
+
+  // Helper to check if a string contains any blacklisted terms
+  const isBlacklisted = (str) => {
+    return blacklistedTerms.some(term => str.includes(term));
+  };
+
+  // Helper to format/capitalize a name nicely
+  const formatName = (name) => {
+    if (!name) return '';
+    return name.split(/[\s-_]+/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // 1. If source name is not native, not blacklisted, and not numeric, treat as platform name
+  if (source && !nativeSources.includes(source) && !/^\d+$/.test(source)) {
+    if (!isBlacklisted(source)) {
+      return formatName(source);
     }
-    return source.charAt(0).toUpperCase() + source.slice(1);
   }
 
-  for (const tag of order.tags || []) {
-    const tl = tag.toLowerCase();
-    if (tl.includes('connector') || tl.includes('sync') || tl.includes('multi-channel')) {
-      return 'Multi-Channel Connector';
+  // 2. Check tags for any platform name after stripping generic terms
+  for (const rawTag of order.tags || []) {
+    const tag = rawTag.toLowerCase().trim();
+    if (isBlacklisted(tag)) continue;
+
+    // Strip generic connector terms to isolate the platform name
+    let cleaned = tag;
+    const genericTagTerms = ['connector', 'sync', 'imported', 'multi-channel', 'channel', 'integration'];
+    genericTagTerms.forEach(term => {
+      cleaned = cleaned.replace(term, '');
+    });
+    cleaned = cleaned.trim();
+
+    if (cleaned && !isBlacklisted(cleaned)) {
+      return formatName(cleaned);
     }
+  }
+
+  // 3. Fallback: if source is not native and not blacklisted (even if numeric), classify generically
+  if (source && !nativeSources.includes(source) && !isBlacklisted(source)) {
+    return 'Multi-Channel Connector';
   }
 
   return null;
