@@ -516,7 +516,7 @@ const RTO_COLORS = ['#ef4444', '#f97316', '#eab308', '#8b5cf6', '#06b6d4'];
 const CARD_DEFAULT = 5;
 const CARD_PAGE = 20;
 
-function RtoCard({ title, label, data, fullWidth = false }) {
+function RtoCard({ title, label, data, fullWidth = false, showInTransit = false }) {
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(0);
   const [sortField, setSortField] = useState('rtoPct'); // Default RTO %
@@ -629,6 +629,7 @@ function RtoCard({ title, label, data, fullWidth = false }) {
                   {renderSortHeader('total', 'Total')}
                   {renderSortHeader('rtoPct', 'RTO %')}
                   {renderSortHeader('delivered', 'Delivered')}
+                  {showInTransit && renderSortHeader('inTransit', 'In Transit')}
                   {renderSortHeader('rto', 'RTO')}
                 </tr>
               </thead>
@@ -649,6 +650,7 @@ function RtoCard({ title, label, data, fullWidth = false }) {
                         </span>
                       </td>
                       <td style={{ padding: pad, textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
+                      {showInTransit && <td style={{ padding: pad, textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{row.inTransit ?? 0}</td>}
                       <td style={{ padding: pad, textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
                     </tr>
                   );
@@ -1042,12 +1044,14 @@ export default function Index() {
 
         const key = keyFn(order);
         if (!key) return;
-        if (!map[key]) map[key] = { delivered: 0, rto: 0, total: 0 };
+        if (!map[key]) map[key] = { delivered: 0, rto: 0, inTransit: 0, total: 0 };
         map[key].total++;
         if (order.orderDeliveryStatus === 'rto_failed') {
           map[key].rto++;
         } else if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
           map[key].delivered++;
+        } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
+          map[key].inTransit++;
         }
       });
       return Object.entries(map)
@@ -1055,6 +1059,7 @@ export default function Index() {
           name,
           delivered: d.delivered,
           rto: d.rto,
+          inTransit: d.inTransit,
           total: d.total,
           rtoPct: d.total > 0 ? +((d.rto / d.total) * 100).toFixed(1) : 0,
         }))
@@ -1066,11 +1071,6 @@ export default function Index() {
       cities: groupBy(o => o.shippingCity || null),
       pincodes: groupBy(o => o.shippingPincode || null),
       couriers: groupBy(o => o.fulfillments?.[0]?.trackingInfo?.[0]?.company || null),
-      customers: groupBy(o => {
-        if (!o.customer) return null;
-        const n = `${o.customer.firstName || ''} ${o.customer.lastName || ''}`.trim();
-        return n || null;
-      }),
     };
   }, [filteredOrders]);
 
@@ -1475,12 +1475,7 @@ export default function Index() {
                 <RtoCard title="🏙️ Top RTO States" label="State" data={rtoAnalysis.states} />
                 <RtoCard title="🌆 Top RTO Cities" label="City" data={rtoAnalysis.cities} />
                 <RtoCard title="📮 Top RTO Pincodes" label="Pincode" data={rtoAnalysis.pincodes} />
-                <RtoCard title="🚚 Top RTO Couriers" label="Courier" data={rtoAnalysis.couriers} />
-              </div>
-
-              {/* Customers — full width */}
-              <div style={{ marginTop: '20px' }}>
-                <RtoCard title="👤 Top RTO Customers" label="Customer" data={rtoAnalysis.customers} fullWidth />
+                <RtoCard title="🚚 Top RTO Couriers" label="Courier" data={rtoAnalysis.couriers} showInTransit />
               </div>
             </div>
 
