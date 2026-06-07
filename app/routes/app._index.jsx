@@ -195,14 +195,9 @@ export const loader = async ({ request }) => {
                   company
                 }
               }
-              metafields(first: 30) {
-                edges {
-                  node {
-                    namespace
-                    key
-                    value
-                  }
-                }
+              customAttributes {
+                key
+                value
               }
             }
           }
@@ -236,16 +231,26 @@ export const loader = async ({ request }) => {
 
     const connectorName = getThirdPartyConnectorName(order);
 
-    // ── Extract connector delivery metadata from metafields ──
+    // ── Extract connector delivery date from customAttributes ──
+    // Marketplace Connect writes these as order custom attributes visible in
+    // "Additional details" on the Shopify order page, e.g.:
+    //   "Amazon Latest Delivery Date" = "2026-06-10T18:29:59.000Z"
+    //   "Amazon Earliest Delivery Date" = "2026-06-09T18:30:00.000Z"
     let connectorLatestDeliveryDate = null;
-    if (connectorName && order.metafields?.edges) {
-      for (const { node: mf } of order.metafields.edges) {
-        const keyLower = (mf.key || '').toLowerCase();
-        // Match keys like "amazon_latest_delivery_date", "latest_delivery_date", "latest-delivery-date" etc.
-        if (keyLower.includes('latest') && keyLower.includes('delivery') && keyLower.includes('date')) {
-          connectorLatestDeliveryDate = mf.value || null;
-          break;
+    let connectorEarliestDeliveryDate = null;
+    if (connectorName && Array.isArray(order.customAttributes)) {
+      for (const attr of order.customAttributes) {
+        const keyLower = (attr.key || '').toLowerCase();
+        // Prefer "latest delivery date" over "earliest"
+        if (keyLower.includes('latest') && keyLower.includes('delivery')) {
+          connectorLatestDeliveryDate = attr.value || null;
+        } else if (!connectorLatestDeliveryDate && keyLower.includes('delivery') && (keyLower.includes('date') || keyLower.includes('earliest'))) {
+          connectorEarliestDeliveryDate = attr.value || null;
         }
+      }
+      // Fall back to earliest if no latest found
+      if (!connectorLatestDeliveryDate && connectorEarliestDeliveryDate) {
+        connectorLatestDeliveryDate = connectorEarliestDeliveryDate;
       }
     }
 
@@ -287,21 +292,31 @@ export const loader = async ({ request }) => {
 function ConnectorStatusCard({ orders }) {
   const now = new Date();
 
-  // Derive per-order connector status
-  const connectorOrders = orders.filter(o => {
-    if (!o.connectorName) return false;
-    const isConnectorNoTracking = o.orderDeliveryStatus !== 'delivered' && o.orderDeliveryStatus !== 'fulfilled' && o.orderDeliveryStatus !== 'rto_failed';
-    return isConnectorNoTracking || o.connectorLatestDeliveryDate || o.connectorReturnClosed;
-  });
+  // Include ALL connector orders — regardless of delivery tracking status
+  const connectorOrders = orders.filter(o => !!o.connectorName);
 
   const getConnectorStatus = (order) => {
+    // Return-closed tag → RTO
     if (order.connectorReturnClosed) return 'RTO / Failed';
-    const latestDelivery = order.connectorLatestDeliveryDate ? new Date(order.connectorLatestDeliveryDate) : null;
-    const isFulfilled = (order.displayFulfillmentStatus || '').toLowerCase() === 'fulfilled';
-    if (isFulfilled && latestDelivery) {
-      return now > latestDelivery ? 'Delivered' : 'In Transit';
+
+    const latestDelivery = order.connectorLatestDeliveryDate
+      ? new Date(order.connectorLatestDeliveryDate)
+      : null;
+    const fulfillStatus = (order.displayFulfillmentStatus || '').toLowerCase();
+    const isFulfilled = fulfillStatus === 'fulfilled';
+
+    if (latestDelivery) {
+      if (now >= latestDelivery) {
+        // Past latest delivery date → Delivered (if fulfilled) or Overdue (if not)
+        return isFulfilled ? 'Delivered' : 'Overdue';
+      } else {
+        // Before latest delivery date → In Transit
+        return 'In Transit';
+      }
     }
-    if (latestDelivery && now > latestDelivery) return 'Overdue';
+
+    // No delivery date available
+    if (isFulfilled) return 'Delivered';
     return 'Pending';
   };
 
