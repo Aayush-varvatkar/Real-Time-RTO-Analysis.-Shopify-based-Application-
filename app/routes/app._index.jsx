@@ -641,7 +641,7 @@ function RtoCard({ title, label, data, fullWidth = false, showInTransit = false 
                       <td style={{ padding: pad, textAlign: 'center', fontWeight: '700', fontSize: '13px', color: globalIdx < 5 ? RTO_COLORS[globalIdx] : '#9ca3af' }}>
                         {globalIdx + 1}
                       </td>
-                      <td style={{ padding: pad, color: '#111827', fontWeight: '500', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</td>
+                      <td title={row.name} style={{ padding: pad, color: '#111827', fontWeight: '500', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}>{row.name}</td>
                       <td style={{ padding: pad, textAlign: 'center', color: '#374151', fontWeight: '600' }}>{row.total}</td>
                       <td style={{ padding: pad, textAlign: 'center' }}>
                         <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 7px', borderRadius: '99px', fontWeight: '700', fontSize: '11px' }}>
