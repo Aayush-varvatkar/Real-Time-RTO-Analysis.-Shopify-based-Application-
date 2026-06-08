@@ -255,24 +255,18 @@ export const loader = async ({ request }) => {
       }
     }
 
-    // ── Detect return-closed for connector orders ──
-    // Primary: Shopify's returnStatus field (read_orders scope, no extra scope needed)
-    //   INSPECTION_COMPLETE = return was closed / completed in Shopify admin ("Return closed" badge)
-    //   IN_PROGRESS         = return still open but started
-    //   RETURN_REQUESTED    = return requested, not yet processed
-    // Secondary fallback: tags written by some connector apps
+    // ── Detect return for connector orders ──
+    // Any non-empty returnStatus other than NO_RETURN means the order has an active/closed return.
+    // This catches INSPECTION_COMPLETE (Return closed badge), IN_PROGRESS, RETURN_REQUESTED, RETURN_FAILED.
+    // Also falls back to tags written by some connector apps.
     const returnStatusVal = (order.returnStatus || '').toUpperCase();
+    const hasReturnStatus = returnStatusVal !== '' && returnStatusVal !== 'NO_RETURN';
     const connectorReturnClosed = connectorName
-      ? returnStatusVal === 'INSPECTION_COMPLETE' ||
+      ? hasReturnStatus ||
         (order.tags || []).some(tag => {
           const t = tag.toLowerCase().replace(/[_\s]/g, '-');
           return t === 'return-closed' || t === 'returned' || t === 'return-complete' || t === 'refund-complete';
         })
-      : false;
-
-    // Also track whether return is still in-progress (for future use)
-    const connectorReturnInProgress = connectorName
-      ? returnStatusVal === 'IN_PROGRESS' || returnStatusVal === 'RETURN_REQUESTED'
       : false;
 
     if (order.fulfillments && order.fulfillments.length > 0) {
@@ -291,9 +285,9 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName, connectorLatestDeliveryDate, connectorReturnClosed, connectorReturnInProgress };
+      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName, connectorLatestDeliveryDate, connectorReturnClosed };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName, connectorLatestDeliveryDate, connectorReturnClosed, connectorReturnInProgress };
+    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName, connectorLatestDeliveryDate, connectorReturnClosed };
   });
 
   return { orders: enhancedOrders, storeProducts };
@@ -303,53 +297,49 @@ export const loader = async ({ request }) => {
 function ConnectorStatusCard({ orders }) {
   const now = new Date();
 
-  // Include ALL connector orders — regardless of delivery tracking status
+  // Include ALL connector orders
   const connectorOrders = orders.filter(o => !!o.connectorName);
 
   const getConnectorStatus = (order) => {
-    // 1. Return fully closed in Shopify admin → RTO / Failed
+    // Any return activity on connector order → RTO / Failed
     if (order.connectorReturnClosed) return 'RTO / Failed';
-    // 2. Return in progress (requested but not closed)
-    if (order.connectorReturnInProgress) return 'Return In Progress';
 
     const latestDelivery = order.connectorLatestDeliveryDate
       ? new Date(order.connectorLatestDeliveryDate)
       : null;
-    const fulfillStatus = (order.displayFulfillmentStatus || '').toLowerCase();
-    const isFulfilled = fulfillStatus === 'fulfilled';
+    const isFulfilled = (order.displayFulfillmentStatus || '').toLowerCase() === 'fulfilled';
 
     if (latestDelivery) {
       if (now >= latestDelivery) {
-        return isFulfilled ? 'Delivered' : 'Overdue';
+        // Past latest delivery date
+        return isFulfilled ? 'Delivered' : 'Unfulfilled';
       } else {
         return 'In Transit';
       }
     }
 
-    if (isFulfilled) return 'Delivered';
-    return 'Pending';
+    // No delivery date — use fulfillment status
+    return isFulfilled ? 'Delivered' : 'Unfulfilled';
   };
 
-  // Aggregate counts
-  const counts = { 'In Transit': 0, 'Delivered': 0, 'Overdue': 0, 'Pending': 0, 'Return In Progress': 0, 'RTO / Failed': 0 };
+  // Aggregate counts — 4 categories only
+  const counts = { 'In Transit': 0, 'Delivered': 0, 'Unfulfilled': 0, 'RTO / Failed': 0 };
   const byPlatform = {};
 
   connectorOrders.forEach(order => {
     const status = getConnectorStatus(order);
     counts[status] = (counts[status] || 0) + 1;
     const p = order.connectorName;
-    if (!byPlatform[p]) byPlatform[p] = { 'In Transit': 0, 'Delivered': 0, 'Overdue': 0, 'Pending': 0, 'Return In Progress': 0, 'RTO / Failed': 0, total: 0 };
+    if (!byPlatform[p]) byPlatform[p] = { 'In Transit': 0, 'Delivered': 0, 'Unfulfilled': 0, 'RTO / Failed': 0, total: 0 };
     byPlatform[p][status] = (byPlatform[p][status] || 0) + 1;
     byPlatform[p].total++;
   });
 
   const pieData = [
-    { name: 'In Transit',          value: counts['In Transit'],          color: '#3b82f6' },
-    { name: 'Delivered',           value: counts['Delivered'],           color: '#10b981' },
-    { name: 'Overdue',             value: counts['Overdue'],             color: '#f59e0b' },
-    { name: 'Pending',             value: counts['Pending'],             color: '#8b5cf6' },
-    { name: 'Return In Progress',  value: counts['Return In Progress'],  color: '#f97316' },
-    { name: 'RTO / Failed',        value: counts['RTO / Failed'],        color: '#ef4444' },
+    { name: 'In Transit',   value: counts['In Transit'],   color: '#3b82f6' },
+    { name: 'Delivered',    value: counts['Delivered'],    color: '#10b981' },
+    { name: 'Unfulfilled',  value: counts['Unfulfilled'],  color: '#f59e0b' },
+    { name: 'RTO / Failed', value: counts['RTO / Failed'], color: '#ef4444' },
   ].filter(d => d.value > 0);
 
   const platforms = Object.entries(byPlatform);
@@ -398,27 +388,23 @@ function ConnectorStatusCard({ orders }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
           <thead>
             <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-              <th style={{ padding: '8px 10px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>Platform</th>
-              <th style={{ padding: '8px 6px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>In Transit</th>
-              <th style={{ padding: '8px 6px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>Delivered</th>
-              <th style={{ padding: '8px 6px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>Overdue</th>
-              <th style={{ padding: '8px 6px', textAlign: 'center', color: '#8b5cf6', fontWeight: '600' }}>Pending</th>
-              <th style={{ padding: '8px 6px', textAlign: 'center', color: '#f97316', fontWeight: '600' }}>Ret. Progress</th>
-              <th style={{ padding: '8px 6px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>RTO</th>
-              <th style={{ padding: '8px 6px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>Total</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>Platform</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>In Transit</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>Delivered</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>Unfulfilled</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>RTO</th>
+              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>Total</th>
             </tr>
           </thead>
           <tbody>
             {platforms.map(([platform, data]) => (
               <tr key={platform} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '8px 10px', fontWeight: '600', color: '#111827' }}>{platform}</td>
-                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{data['In Transit'] || 0}</td>
-                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>{data['Delivered'] || 0}</td>
-                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>{data['Overdue'] || 0}</td>
-                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#8b5cf6', fontWeight: '600' }}>{data['Pending'] || 0}</td>
-                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#f97316', fontWeight: '600' }}>{data['Return In Progress'] || 0}</td>
-                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>{data['RTO / Failed'] || 0}</td>
-                <td style={{ padding: '8px 6px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{data.total}</td>
+                <td style={{ padding: '8px 12px', fontWeight: '600', color: '#111827' }}>{platform}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{data['In Transit'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>{data['Delivered'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>{data['Unfulfilled'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>{data['RTO / Failed'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{data.total}</td>
               </tr>
             ))}
           </tbody>
