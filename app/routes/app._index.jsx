@@ -604,9 +604,9 @@ function ProductRtoCard({ data }) {
                   <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '36px' }}>#</th>
                   {renderSortHeader('name', 'Product', 'left')}
                   {renderSortHeader('total', 'Total Orders')}
-                  {renderSortHeader('inTransit', 'In Transit')}
                   {renderSortHeader('delivered', 'Delivered')}
                   {renderSortHeader('rto', 'RTO')}
+                  {renderSortHeader('inTransit', 'In Transit')}
                   {renderSortHeader('rtoPct', 'RTO %')}
                 </tr>
               </thead>
@@ -622,9 +622,9 @@ function ProductRtoCard({ data }) {
                         {row.name}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>{row.total}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{row.inTransit}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{row.inTransit}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                         <span style={{
                           backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',
@@ -1215,12 +1215,13 @@ export default function Index() {
         .sort((a, b) => b.rtoPct - a.rtoPct || b.rto - a.rto);
     };
 
-    // ── Product groupBy (one order can have multiple line items → count each product separately) ──
+    // ── Product groupBy (filtered to active store products only) ──
+    const activeProductSet = new Set(storeProducts); // storeProducts = active catalog titles from loader
     const productMap = {};
     filteredOrders.forEach(order => {
       const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
       if (isConnectorNoTracking) return;
-      const products = new Set((order.lineItems?.edges || []).map(e => e.node.title).filter(Boolean));
+      const products = new Set((order.lineItems?.edges || []).map(e => e.node.title).filter(t => t && activeProductSet.has(t)));
       products.forEach(productTitle => {
         if (!productMap[productTitle]) productMap[productTitle] = { delivered: 0, rto: 0, inTransit: 0, total: 0 };
         productMap[productTitle].total++;
@@ -1251,7 +1252,7 @@ export default function Index() {
       couriers: groupBy(o => o.fulfillments?.[0]?.trackingInfo?.[0]?.company || null),
       products,
     };
-  }, [filteredOrders]);
+  }, [filteredOrders, storeProducts]);
 
   const handleDateSelection = useCallback(
     (value) => {
