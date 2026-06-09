@@ -605,6 +605,7 @@ function ProductRtoCard({ data }) {
                   {renderSortHeader('name', 'Product', 'left')}
                   {renderSortHeader('total', 'Total Orders')}
                   {renderSortHeader('inTransit', 'In Transit')}
+                  {renderSortHeader('delivered', 'Delivered')}
                   {renderSortHeader('rto', 'RTO')}
                   {renderSortHeader('rtoPct', 'RTO %')}
                 </tr>
@@ -622,6 +623,7 @@ function ProductRtoCard({ data }) {
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>{row.total}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{row.inTransit}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                         <span style={{
