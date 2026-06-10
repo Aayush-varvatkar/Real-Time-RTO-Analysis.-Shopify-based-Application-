@@ -2,22 +2,15 @@ import { useState, useMemo, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { normalizeDeliveryStatus, getThirdPartyConnectorName } from "../utils/orders";
+import OrderFilters from "../components/OrderFilters";
 
 import {
   AppProvider,
   Page,
-  Box,
   BlockStack,
-  InlineStack,
-  Popover,
   Button,
-  DatePicker,
-  ActionList,
-  Text,
-  Divider,
-  Select,
 } from '@shopify/polaris';
-import { CalendarIcon, FilterIcon, ExportIcon } from '@shopify/polaris-icons';
+import { ExportIcon } from '@shopify/polaris-icons';
 import '@shopify/polaris/build/esm/styles.css';
 import enTranslations from '@shopify/polaris/locales/en.json';
 
@@ -179,9 +172,6 @@ export const loader = async ({ request }) => {
 export default function Orders() {
   const { orders, storeProducts } = useLoaderData();
 
-  const [datePopoverActive, setDatePopoverActive] = useState(false);
-  const toggleDatePopover = useCallback(() => setDatePopoverActive((active) => !active), []);
-
   const [selectedDates, setSelectedDates] = useState(() => {
     const end = new Date();
     end.setHours(0, 0, 0, 0);
@@ -190,134 +180,12 @@ export default function Orders() {
     return { start, end };
   });
 
-  const [{ month, year }, setDate] = useState(() => ({
-    month: new Date().getMonth(),
-    year: new Date().getFullYear(),
-  }));
-
-  const [presetFilter, setPresetFilter] = useState('last30');
-
-  const presetOptions = [
-    { label: 'Today', value: 'today' },
-    { label: 'Yesterday', value: 'yesterday' },
-    { label: 'Last 7 days', value: 'last7' },
-    { label: 'Last 30 days', value: 'last30' },
-    { label: 'Last 90 days', value: 'last90' },
-    { label: 'Last month', value: 'lastMonth' },
-    { label: 'Custom', value: 'custom' },
-  ];
-
-  const handlePresetChange = useCallback((value) => {
-    setPresetFilter(value);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    let start, end;
-    switch (value) {
-      case 'today':
-        start = today;
-        end = today;
-        break;
-      case 'yesterday':
-        start = new Date(today);
-        start.setDate(today.getDate() - 1);
-        end = new Date(today);
-        end.setDate(today.getDate() - 1);
-        break;
-      case 'last7':
-        start = new Date(today);
-        start.setDate(today.getDate() - 6);
-        end = today;
-        break;
-      case 'last30':
-        start = new Date(today);
-        start.setDate(today.getDate() - 29);
-        end = today;
-        break;
-      case 'last90':
-        start = new Date(today);
-        start.setDate(today.getDate() - 89);
-        end = today;
-        break;
-      case 'lastMonth':
-        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        end = new Date(now.getFullYear(), now.getMonth(), 0);
-        break;
-      case 'custom':
-        return;
-      default:
-        return;
-    }
-
-    setSelectedDates({ start, end });
-    setDate({ month: end.getMonth(), year: end.getFullYear() });
-  }, []);
-
-  const [productPopoverActive, setProductPopoverActive] = useState(false);
-  const toggleProductPopover = useCallback(() => setProductPopoverActive((active) => !active), []);
   const [productFilter, setProductFilter] = useState("All Product Types");
-
-  const [deliveryStatusPopoverActive, setDeliveryStatusPopoverActive] = useState(false);
-  const toggleDeliveryStatusPopover = useCallback(() => setDeliveryStatusPopoverActive((active) => !active), []);
   const [deliveryStatusFilter, setDeliveryStatusFilter] = useState("All Statuses");
-
-  // State / City / Pincode Filter State
-  const [statePopoverActive, setStatePopoverActive] = useState(false);
-  const toggleStatePopover = useCallback(() => setStatePopoverActive((a) => !a), []);
   const [stateFilter, setStateFilter] = useState("All States");
-
-  const [cityPopoverActive, setCityPopoverActive] = useState(false);
-  const toggleCityPopover = useCallback(() => setCityPopoverActive((a) => !a), []);
   const [cityFilter, setCityFilter] = useState("All Cities");
-
-  const [pincodePopoverActive, setPincodePopoverActive] = useState(false);
-  const togglePincodePopover = useCallback(() => setPincodePopoverActive((a) => !a), []);
   const [pincodeFilter, setPincodeFilter] = useState("All Pincodes");
-
-  // Courier Filter State
-  const [courierPopoverActive, setCourierPopoverActive] = useState(false);
-  const toggleCourierPopover = useCallback(() => setCourierPopoverActive((a) => !a), []);
   const [courierFilter, setCourierFilter] = useState("All Couriers");
-
-  // Use store products directly (from loader) — only real catalog products appear here
-  const uniqueProducts = useMemo(() => storeProducts, [storeProducts]);
-
-  // Unique states, cities, pincodes (cascading)
-  const uniqueStates = useMemo(() => {
-    const vals = new Set();
-    orders.forEach(o => { if (o.shippingState) vals.add(o.shippingState); });
-    return Array.from(vals).sort();
-  }, [orders]);
-
-  const uniqueCities = useMemo(() => {
-    const vals = new Set();
-    orders.forEach(o => {
-      if (stateFilter === "All States" || o.shippingState === stateFilter) {
-        if (o.shippingCity) vals.add(o.shippingCity);
-      }
-    });
-    return Array.from(vals).sort();
-  }, [orders, stateFilter]);
-
-  const uniquePincodes = useMemo(() => {
-    const vals = new Set();
-    orders.forEach(o => {
-      const stateMatch = stateFilter === "All States" || o.shippingState === stateFilter;
-      const cityMatch = cityFilter === "All Cities" || o.shippingCity === cityFilter;
-      if (stateMatch && cityMatch && o.shippingPincode) vals.add(o.shippingPincode);
-    });
-    return Array.from(vals).sort();
-  }, [orders, stateFilter, cityFilter]);
-
-  // Extract unique couriers from ALL orders (from fulfillment tracking info)
-  const uniqueCouriers = useMemo(() => {
-    const vals = new Set();
-    orders.forEach(o => {
-      const company = o.fulfillments?.[0]?.trackingInfo?.[0]?.company;
-      if (company && company.trim()) vals.add(company.trim());
-    });
-    return Array.from(vals).sort();
-  }, [orders]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
@@ -414,31 +282,6 @@ export default function Orders() {
     URL.revokeObjectURL(url);
   }, [filteredOrders]);
 
-  const handleDateSelection = useCallback((value) => { setSelectedDates(value); setPresetFilter('custom'); }, []);
-  const formatDateForComparison = (start, end) => `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
-  const formatDateForInput = (date) => `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
-  
-  const productOptions = [{ content: "All Product Types", onAction: () => { setProductFilter("All Product Types"); toggleProductPopover(); } }, ...uniqueProducts.map(fp => ({ content: fp, onAction: () => { setProductFilter(fp); toggleProductPopover(); } }))];
-  
-  const uniqueConnectors = useMemo(() => {
-    const names = new Set();
-    orders?.forEach(o => {
-      const name = getThirdPartyConnectorName(o);
-      if (name) names.add(name);
-    });
-    return Array.from(names).sort();
-  }, [orders]);
-
-  const deliveryStatusOptions = useMemo(() => {
-    const options = [{ content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } }, { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } }, { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } }, { content: "RTO", onAction: () => { setDeliveryStatusFilter("RTO"); toggleDeliveryStatusPopover(); } }];
-    uniqueConnectors.forEach(conn => options.push({ content: `Dispatched by ${conn}`, onAction: () => { setDeliveryStatusFilter(`Dispatched by ${conn}`); toggleDeliveryStatusPopover(); } }));
-    return options;
-  }, [uniqueConnectors]);
-
-  const stateOptions = [{ content: "All States", onAction: () => { setStateFilter("All States"); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); } }, ...uniqueStates.map(s => ({ content: s, onAction: () => { setStateFilter(s); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); } }))];
-  const cityOptions = [{ content: "All Cities", onAction: () => { setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleCityPopover(); } }, ...uniqueCities.map(c => ({ content: c, onAction: () => { setCityFilter(c); setPincodeFilter("All Pincodes"); toggleCityPopover(); } }))];
-  const pincodeOptions = [{ content: "All Pincodes", onAction: () => { setPincodeFilter("All Pincodes"); togglePincodePopover(); } }, ...uniquePincodes.map(p => ({ content: p, onAction: () => { setPincodeFilter(p); togglePincodePopover(); } }))];
-  const courierOptions = [{ content: "All Couriers", onAction: () => { setCourierFilter("All Couriers"); toggleCourierPopover(); } }, ...uniqueCouriers.map(c => ({ content: c, onAction: () => { setCourierFilter(c); toggleCourierPopover(); } }))];
 
   const getStatusBadge = (status) => {
     let bgColor = "#f3f4f6", textColor = "#374151";
@@ -468,29 +311,25 @@ export default function Orders() {
       <div style={{ padding: "2rem" }}>
         <Page title="Orders" fullWidth primaryAction={<Button icon={ExportIcon} variant="primary" onClick={handleExportCSV} disabled={filteredOrders.length === 0}>Export CSV ({filteredOrders.length})</Button>}>
           <BlockStack gap="400">
-            <InlineStack gap="400" blockAlign="center" wrap={false}>
-              <Popover active={datePopoverActive} activator={<Button onClick={toggleDatePopover} icon={CalendarIcon}>{presetOptions.find(o => o.value === presetFilter)?.label || 'Custom'}</Button>} autofocusTarget="none" onClose={toggleDatePopover} fluidContent>
-                <Box padding="400" width="650px">
-                  <BlockStack gap="400">
-                    <Select options={presetOptions} value={presetFilter} onChange={handlePresetChange} label="Date range" />
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                      <div style={{ flex: 1 }}><div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>Starting</div><div style={{ border: '1px solid #c9cccf', borderRadius: '8px', padding: '8px 12px' }}>{formatDateForInput(selectedDates.start)}</div></div>
-                      <div style={{ flex: 1 }}><div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>Ending</div><div style={{ border: '1px solid #c9cccf', borderRadius: '8px', padding: '8px 12px' }}>{formatDateForInput(selectedDates.end)}</div></div>
-                    </div>
-                    <DatePicker month={month} year={year} onChange={handleDateSelection} onMonthChange={(month, year) => setDate({ month, year })} selected={selectedDates} multiMonth allowRange />
-                    <Divider />
-                    <Button onClick={toggleDatePopover} variant="primary" tone="success">Apply</Button>
-                  </BlockStack>
-                </Box>
-              </Popover>
-              <Text as="span" tone="subdued">Compared to {formatDateForComparison(selectedDates.start, selectedDates.end)}</Text>
-              <Popover active={productPopoverActive} activator={<Button onClick={toggleProductPopover} icon={FilterIcon}>{productFilter}</Button>} onClose={toggleProductPopover}><div style={{ minWidth: "200px" }}><ActionList items={productOptions} /></div></Popover>
-              <Popover active={deliveryStatusPopoverActive} activator={<Button onClick={toggleDeliveryStatusPopover} icon={FilterIcon}>{deliveryStatusFilter}</Button>} onClose={toggleDeliveryStatusPopover}><div style={{ minWidth: "150px" }}><ActionList items={deliveryStatusOptions} /></div></Popover>
-              <Popover active={statePopoverActive} activator={<Button onClick={toggleStatePopover} icon={FilterIcon}>{stateFilter}</Button>} onClose={toggleStatePopover}><div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}><ActionList items={stateOptions} /></div></Popover>
-              <Popover active={cityPopoverActive} activator={<Button onClick={toggleCityPopover} icon={FilterIcon}>{cityFilter}</Button>} onClose={toggleCityPopover}><div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}><ActionList items={cityOptions} /></div></Popover>
-              <Popover active={pincodePopoverActive} activator={<Button onClick={togglePincodePopover} icon={FilterIcon}>{pincodeFilter}</Button>} onClose={togglePincodePopover}><div style={{ minWidth: "160px", maxHeight: "260px", overflowY: "auto" }}><ActionList items={pincodeOptions} /></div></Popover>
-              <Popover active={courierPopoverActive} activator={<Button onClick={toggleCourierPopover} icon={FilterIcon}>{courierFilter}</Button>} onClose={toggleCourierPopover}><div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}><ActionList items={courierOptions} /></div></Popover>
-            </InlineStack>
+            <OrderFilters
+              orders={orders}
+              storeProducts={storeProducts}
+              selectedDates={selectedDates}
+              setSelectedDates={setSelectedDates}
+              productFilter={productFilter}
+              setProductFilter={setProductFilter}
+              deliveryStatusFilter={deliveryStatusFilter}
+              setDeliveryStatusFilter={setDeliveryStatusFilter}
+              stateFilter={stateFilter}
+              setStateFilter={setStateFilter}
+              cityFilter={cityFilter}
+              setCityFilter={setCityFilter}
+              pincodeFilter={pincodeFilter}
+              setPincodeFilter={setPincodeFilter}
+              courierFilter={courierFilter}
+              setCourierFilter={setCourierFilter}
+              variant="orders"
+            />
 
             <div style={{ backgroundColor: "#fff", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: "16px" }}>
               <div style={{ overflowX: "auto" }}>
