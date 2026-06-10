@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
+import { normalizeDeliveryStatus, getThirdPartyConnectorName } from "../utils/orders";
 
 import {
   AppProvider,
@@ -20,81 +21,10 @@ import { CalendarIcon, FilterIcon, ExportIcon } from '@shopify/polaris-icons';
 import '@shopify/polaris/build/esm/styles.css';
 import enTranslations from '@shopify/polaris/locales/en.json';
 
-function normalizeDeliveryStatus(fulfillmentStatus) {
-  const statusLower = (fulfillmentStatus || '').toLowerCase();
-
-  // Explicitly catch failure states first
-  if (statusLower.includes('rto') || statusLower.includes('return') || statusLower.includes('fail') || statusLower.includes('error') || statusLower.includes('canceled') || statusLower.includes('not_delivered')) {
-    return 'RTO';
-  } else if (statusLower === 'delivered') { // Explicit tracking 'delivered' status
-    return 'delivered';
-  } else if (statusLower.includes('out') && statusLower.includes('delivery')) {
-    return 'out_for_delivery';
-  }
-
-  return 'in_transit'; // Covers 'fulfilled', 'in_transit', 'pending', etc.
-}
-
-function getThirdPartyConnectorName(order) {
-  const source = (order.sourceName || '').toLowerCase().trim();
-  const tags = (order.tags || []).map(t => t.toLowerCase().trim());
-
-  // Strict whitelist: only known ecommerce marketplace platforms
-  // connected via third-party multi-channel connectors (e.g. CedCommerce, Codisto, Linnworks)
-  // Each entry: [keyword_to_match, display_name]
-  const ECOMMERCE_PLATFORMS = [
-    ['amazon',       'Amazon'],
-    ['ebay',         'eBay'],
-    ['walmart',      'Walmart'],
-    ['etsy',         'Etsy'],
-    ['flipkart',     'Flipkart'],
-    ['meesho',       'Meesho'],
-    ['myntra',       'Myntra'],
-    ['nykaa',        'Nykaa'],
-    ['ajio',         'Ajio'],
-    ['jiomart',      'JioMart'],
-    ['snapdeal',     'Snapdeal'],
-    ['tatacliq',     'TataCliq'],
-    ['glowroad',     'GlowRoad'],
-    ['shopclues',    'ShopClues'],
-    ['paytmmall',    'Paytm Mall'],
-    ['shopee',       'Shopee'],
-    ['lazada',       'Lazada'],
-    ['tokopedia',    'Tokopedia'],
-    ['tiktokshop',   'TikTok Shop'],
-    ['tiktok shop',  'TikTok Shop'],
-    ['aliexpress',   'AliExpress'],
-    ['alibaba',      'Alibaba'],
-    ['noon',         'Noon'],
-    ['woocommerce',  'WooCommerce'],
-    ['magento',      'Magento'],
-    ['bigcommerce',  'BigCommerce'],
-    ['prestashop',   'PrestaShop'],
-    ['opencart',     'OpenCart'],
-  ];
-
-  // Check source name against whitelist
-  for (const [keyword, displayName] of ECOMMERCE_PLATFORMS) {
-    if (source.includes(keyword)) {
-      return displayName;
-    }
-  }
-
-  // Check tags against whitelist
-  for (const tag of tags) {
-    for (const [keyword, displayName] of ECOMMERCE_PLATFORMS) {
-      if (tag.includes(keyword)) {
-        return displayName;
-      }
-    }
-  }
-
-  return null;
-}
+// normalizeDeliveryStatus and getThirdPartyConnectorName are imported from app/utils/orders.js
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
-  const shop = session.shop;
+  const { admin } = await authenticate.admin(request);
 
   // ── 1. Fetch all store products (paginated) ──────────────────────────────
   let allStoreProducts = [];
@@ -198,6 +128,13 @@ export const loader = async ({ request }) => {
     );
 
     const json = await response.json();
+
+    // Guard: if Shopify returns errors (e.g. missing scope), stop and return what we have
+    if (!json.data || !json.data.orders) {
+      console.error('[Orders] Orders query error:', JSON.stringify(json.errors || json));
+      break;
+    }
+
     const ordersPage = json.data.orders;
 
     allRawOrders.push(...ordersPage.edges.map((edge) => edge.node));
@@ -412,69 +349,34 @@ export default function Orders() {
         if (deliveryStatusFilter === "Delivered") {
           statusMatches = (orderStatus === 'delivered' || orderStatus === 'fulfilled');
         } else if (deliveryStatusFilter === "In-Transit") {
-          const isConnectorNoTracking = order.connectorName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'RTO' && orderStatus !== 'rto_failed');
+          const isConnectorNoTracking = order.connectorName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'rto_failed');
           statusMatches = !isConnectorNoTracking && (orderStatus === 'in_transit' || orderStatus === 'out_for_delivery');
         } else if (deliveryStatusFilter === "Failed") {
-          statusMatches = (orderStatus === 'RTO' || orderStatus === 'rto_failed');
+          statusMatches = (orderStatus === 'rto_failed');
         } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
           const connName = deliveryStatusFilter.replace("Dispatched by ", "");
-          const isConnectorNoTracking = order.connectorName === connName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'RTO' && orderStatus !== 'rto_failed');
+          const isConnectorNoTracking = order.connectorName === connName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'rto_failed');
           statusMatches = isConnectorNoTracking;
         }
         if (!statusMatches) return false;
       }
 
-      // 4. State Filter
-      if (stateFilter !== "All States") {
-        if (order.shippingState !== stateFilter) return false;
-      }
-
-      // 5. City Filter
-      if (cityFilter !== "All Cities") {
-        if (order.shippingCity !== cityFilter) return false;
-      }
-
-      // 6. Pincode Filter
-      if (pincodeFilter !== "All Pincodes") {
-        if (order.shippingPincode !== pincodeFilter) return false;
-      }
-
-      // 7. Courier Filter
-      if (courierFilter !== "All Couriers") {
-        const orderCourier = order.fulfillments?.[0]?.trackingInfo?.[0]?.company?.trim();
-        if (orderCourier !== courierFilter) return false;
-      }
+      if (stateFilter !== "All States" && order.shippingState !== stateFilter) return false;
+      if (cityFilter !== "All Cities" && order.shippingCity !== cityFilter) return false;
+      if (pincodeFilter !== "All Pincodes" && order.shippingPincode !== pincodeFilter) return false;
+      if (courierFilter !== "All Couriers" && order.fulfillments?.[0]?.trackingInfo?.[0]?.company?.trim() !== courierFilter) return false;
 
       return true;
     });
   }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter, courierFilter]);
 
   const handleExportCSV = useCallback(() => {
-    const headers = [
-      'Order',
-      'Order Date',
-      'Customer',
-      'Items',
-      'Tracking Status',
-      'Fulfillment Status',
-      'Amount (Rs.)',
-      'Payment Status',
-      'State',
-      'City',
-      'Pincode',
-    ];
-
+    const headers = ['Order', 'Order Date', 'Customer', 'Items', 'Tracking Status', 'Fulfillment Status', 'Amount (Rs.)', 'Payment Status', 'State', 'City', 'Pincode'];
     const rows = filteredOrders.map(order => {
-      const customerName = order.customer
-        ? `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim() || 'No Customer'
-        : 'No Customer';
-
-      const items = order.lineItems?.edges
-        ?.map(e => `${e.node.title} x${e.node.quantity}`)
-        .join(' | ') || '';
-
+      const customerName = order.customer ? `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim() || 'No Customer' : 'No Customer';
+      const items = order.lineItems?.edges?.map(e => `${e.node.title} x${e.node.quantity}`).join(' | ') || '';
       let trackingStatus = 'N/A';
-      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'RTO' && order.orderDeliveryStatus !== 'rto_failed');
+      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
       if (isConnectorNoTracking) {
         trackingStatus = `Dispatched by ${order.connectorName}`;
       } else if (order.fulfillments && order.fulfillments.length > 0) {
@@ -485,29 +387,10 @@ export default function Orders() {
           trackingStatus = normalizeDeliveryStatus(f.displayStatus || f.status);
         }
       }
-
-      const orderDate = new Date(order.createdAt).toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric',
-      });
-
-      // Escape commas/quotes in cell values
+      const orderDate = new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
       const escape = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-
-      return [
-        escape(order.name),
-        escape(orderDate),
-        escape(customerName),
-        escape(items),
-        escape(trackingStatus),
-        escape(order.displayFulfillmentStatus || 'UNFULFILLED'),
-        escape(order.totalPriceSet?.shopMoney?.amount || '0.00'),
-        escape(order.displayFinancialStatus || 'N/A'),
-        escape(order.shippingState || ''),
-        escape(order.shippingCity || ''),
-        escape(order.shippingPincode || ''),
-      ].join(',');
+      return [escape(order.name), escape(orderDate), escape(customerName), escape(items), escape(trackingStatus), escape(order.displayFulfillmentStatus || 'UNFULFILLED'), escape(order.totalPriceSet?.shopMoney?.amount || '0.00'), escape(order.displayFinancialStatus || 'N/A'), escape(order.shippingState || ''), escape(order.shippingCity || ''), escape(order.shippingPincode || '')].join(',');
     });
-
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -521,53 +404,15 @@ export default function Orders() {
     URL.revokeObjectURL(url);
   }, [filteredOrders]);
 
-  const handleDateSelection = useCallback(
-    (value) => {
-      setSelectedDates(value);
-      setPresetFilter('custom');
-    },
-    [],
-  );
-
-  const formatDateForComparison = (start, end) => {
-    const startStr = start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    const endStr = end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    return `${startStr} - ${endStr}`;
-  };
-
-  const formatDateForInput = (date) => {
-    return `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
-  };
-
-  const dateButton = (
-    <Button onClick={toggleDatePopover} icon={CalendarIcon}>
-      {presetOptions.find(o => o.value === presetFilter)?.label || 'Custom'}
-    </Button>
-  );
-
-  const productActivator = (
-    <Button onClick={toggleProductPopover} icon={FilterIcon}>
-      {productFilter}
-    </Button>
-  );
-
-  const productOptions = [
-    { content: "All Product Types", onAction: () => { setProductFilter("All Product Types"); toggleProductPopover(); } },
-    ...uniqueProducts.map(fp => ({
-      content: fp,
-      onAction: () => { setProductFilter(fp); toggleProductPopover(); }
-    }))
-  ];
-
-  const deliveryStatusActivator = (
-    <Button onClick={toggleDeliveryStatusPopover} icon={FilterIcon}>
-      {deliveryStatusFilter}
-    </Button>
-  );
-
+  const handleDateSelection = useCallback((value) => { setSelectedDates(value); setPresetFilter('custom'); }, []);
+  const formatDateForComparison = (start, end) => `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const formatDateForInput = (date) => `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`;
+  
+  const productOptions = [{ content: "All Product Types", onAction: () => { setProductFilter("All Product Types"); toggleProductPopover(); } }, ...uniqueProducts.map(fp => ({ content: fp, onAction: () => { setProductFilter(fp); toggleProductPopover(); } }))];
+  
   const uniqueConnectors = useMemo(() => {
     const names = new Set();
-    orders.forEach(o => {
+    orders?.forEach(o => {
       const name = getThirdPartyConnectorName(o);
       if (name) names.add(name);
     });
@@ -575,243 +420,81 @@ export default function Orders() {
   }, [orders]);
 
   const deliveryStatusOptions = useMemo(() => {
-    const options = [
-      { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
-      { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
-      { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
-      { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }
-    ];
-
-    uniqueConnectors.forEach(conn => {
-      options.push({
-        content: `Dispatched by ${conn}`,
-        onAction: () => {
-          setDeliveryStatusFilter(`Dispatched by ${conn}`);
-          toggleDeliveryStatusPopover();
-        }
-      });
-    });
-
+    const options = [{ content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } }, { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } }, { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } }, { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }];
+    uniqueConnectors.forEach(conn => options.push({ content: `Dispatched by ${conn}`, onAction: () => { setDeliveryStatusFilter(`Dispatched by ${conn}`); toggleDeliveryStatusPopover(); } }));
     return options;
   }, [uniqueConnectors]);
 
-  // State / City / Pincode action lists
-  const stateOptions = [
-    { content: "All States", onAction: () => { setStateFilter("All States"); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); } },
-    ...uniqueStates.map(s => ({
-      content: s,
-      onAction: () => { setStateFilter(s); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); }
-    }))
-  ];
-
-  const cityOptions = [
-    { content: "All Cities", onAction: () => { setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleCityPopover(); } },
-    ...uniqueCities.map(c => ({
-      content: c,
-      onAction: () => { setCityFilter(c); setPincodeFilter("All Pincodes"); toggleCityPopover(); }
-    }))
-  ];
-
-  const pincodeOptions = [
-    { content: "All Pincodes", onAction: () => { setPincodeFilter("All Pincodes"); togglePincodePopover(); } },
-    ...uniquePincodes.map(p => ({
-      content: p,
-      onAction: () => { setPincodeFilter(p); togglePincodePopover(); }
-    }))
-  ];
-
-  const courierOptions = [
-    { content: "All Couriers", onAction: () => { setCourierFilter("All Couriers"); toggleCourierPopover(); } },
-    ...uniqueCouriers.map(c => ({
-      content: c,
-      onAction: () => { setCourierFilter(c); toggleCourierPopover(); }
-    }))
-  ];
+  const stateOptions = [{ content: "All States", onAction: () => { setStateFilter("All States"); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); } }, ...uniqueStates.map(s => ({ content: s, onAction: () => { setStateFilter(s); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); } }))];
+  const cityOptions = [{ content: "All Cities", onAction: () => { setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleCityPopover(); } }, ...uniqueCities.map(c => ({ content: c, onAction: () => { setCityFilter(c); setPincodeFilter("All Pincodes"); toggleCityPopover(); } }))];
+  const pincodeOptions = [{ content: "All Pincodes", onAction: () => { setPincodeFilter("All Pincodes"); togglePincodePopover(); } }, ...uniquePincodes.map(p => ({ content: p, onAction: () => { setPincodeFilter(p); togglePincodePopover(); } }))];
+  const courierOptions = [{ content: "All Couriers", onAction: () => { setCourierFilter("All Couriers"); toggleCourierPopover(); } }, ...uniqueCouriers.map(c => ({ content: c, onAction: () => { setCourierFilter(c); toggleCourierPopover(); } }))];
 
   const getStatusBadge = (status) => {
-    let bgColor = "#f3f4f6";
-    let textColor = "#374151";
-
+    let bgColor = "#f3f4f6", textColor = "#374151";
     if (status === "delivered") { bgColor = "#dcfce7"; textColor = "#166534"; }
     else if (status === "in_transit") { bgColor = "#dbeafe"; textColor = "#1e40af"; }
     else if (status === "out_for_delivery") { bgColor = "#fef08a"; textColor = "#854d0e"; }
-    else if (status === "RTO" || status === "failed" || status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; }
-    else if (status.startsWith("dispatched_by_")) {
-      bgColor = "#e0f2fe"; // sky blue
-      textColor = "#0369a1"; // dark blue
-    }
-
-    return (
-      <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
-        {status.startsWith("dispatched_by_") 
-          ? `Dispatched by ${status.replace("dispatched_by_", "").toUpperCase()}`
-          : status.replace(/_/g, " ")}
-      </span>
-    );
+    else if (status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; }
+    else if (status.startsWith("dispatched_by_")) { bgColor = "#e0f2fe"; textColor = "#0369a1"; }
+    return <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>{status.startsWith("dispatched_by_") ? `Dispatched by ${status.replace("dispatched_by_", "").toUpperCase()}` : status.replace(/_/g, " ")}</span>;
   };
 
   const getFulfillmentBadge = (status) => {
-    let bgColor = "#fef08a"; // yellow for unfulfilled
-    let textColor = "#854d0e";
     const s = (status || "").toLowerCase();
-    if (s === "fulfilled") { bgColor = "#dcfce7"; textColor = "#166534"; } // green for fulfilled
-
-    return (
-      <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
-        {status || "UNFULFILLED"}
-      </span>
-    );
+    const isFulfilled = s === "fulfilled";
+    return <span style={{ backgroundColor: isFulfilled ? "#dcfce7" : "#fef08a", color: isFulfilled ? "#166534" : "#854d0e", padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>{status || "UNFULFILLED"}</span>;
   };
 
   const getPaymentBadge = (status) => {
-    let bgColor = "#dbeafe";
-    let textColor = "#1e40af";
     const s = (status || "").toLowerCase();
-    if (s === "paid") { bgColor = "#dcfce7"; textColor = "#166534"; }
-
-    return (
-      <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
-        {status || "N/A"}
-      </span>
-    );
+    const isPaid = s === "paid";
+    return <span style={{ backgroundColor: isPaid ? "#dcfce7" : "#dbeafe", color: isPaid ? "#166534" : "#1e40af", padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>{status || "N/A"}</span>;
   };
 
   return (
     <AppProvider i18n={enTranslations}>
       <div style={{ padding: "2rem" }}>
-        <Page
-          title="Orders"
-          fullWidth
-          primaryAction={
-            <Button
-              icon={ExportIcon}
-              variant="primary"
-              onClick={handleExportCSV}
-              disabled={filteredOrders.length === 0}
-            >
-              Export CSV ({filteredOrders.length})
-            </Button>
-          }
-        >
+        <Page title="Orders" fullWidth primaryAction={<Button icon={ExportIcon} variant="primary" onClick={handleExportCSV} disabled={filteredOrders.length === 0}>Export CSV ({filteredOrders.length})</Button>}>
           <BlockStack gap="400">
             <InlineStack gap="400" blockAlign="center" wrap={false}>
-              <Popover active={datePopoverActive} activator={dateButton} autofocusTarget="none" onClose={toggleDatePopover} fluidContent>
+              <Popover active={datePopoverActive} activator={<Button onClick={toggleDatePopover} icon={CalendarIcon}>{presetOptions.find(o => o.value === presetFilter)?.label || 'Custom'}</Button>} autofocusTarget="none" onClose={toggleDatePopover} fluidContent>
                 <Box padding="400" width="650px">
                   <BlockStack gap="400">
-                    <div style={{ marginBottom: "4px" }}>
-                      <Select options={presetOptions} value={presetFilter} onChange={handlePresetChange} label="Date range" />
-                    </div>
+                    <Select options={presetOptions} value={presetFilter} onChange={handlePresetChange} label="Date range" />
                     <div style={{ display: 'flex', gap: '12px' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: '500', color: '#1a1a1a', marginBottom: '6px' }}>Starting</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #c9cccf', borderRadius: '8px', padding: '8px 12px', background: '#fff' }}>
-                          <svg width="14" height="14" viewBox="0 0 20 20" fill="#5c5f62"><path d="M7 2a1 1 0 0 0-1 1v1H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V3a1 1 0 0 0-2 0v1H8V3a1 1 0 0 0-1-1ZM4 8h12v9H4V8Z" /></svg>
-                          <span style={{ fontSize: '14px', color: '#1a1a1a' }}>{formatDateForInput(selectedDates.start)}</span>
-                        </div>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: '500', color: '#1a1a1a', marginBottom: '6px' }}>Ending</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #c9cccf', borderRadius: '8px', padding: '8px 12px', background: '#fff' }}>
-                          <svg width="14" height="14" viewBox="0 0 20 20" fill="#5c5f62"><path d="M7 2a1 1 0 0 0-1 1v1H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V3a1 1 0 0 0-2 0v1H8V3a1 1 0 0 0-1-1ZM4 8h12v9H4V8Z" /></svg>
-                          <span style={{ fontSize: '14px', color: '#1a1a1a' }}>{formatDateForInput(selectedDates.end)}</span>
-                        </div>
-                      </div>
+                      <div style={{ flex: 1 }}><div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>Starting</div><div style={{ border: '1px solid #c9cccf', borderRadius: '8px', padding: '8px 12px' }}>{formatDateForInput(selectedDates.start)}</div></div>
+                      <div style={{ flex: 1 }}><div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '6px' }}>Ending</div><div style={{ border: '1px solid #c9cccf', borderRadius: '8px', padding: '8px 12px' }}>{formatDateForInput(selectedDates.end)}</div></div>
                     </div>
                     <DatePicker month={month} year={year} onChange={handleDateSelection} onMonthChange={(month, year) => setDate({ month, year })} selected={selectedDates} multiMonth allowRange />
                     <Divider />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px' }}>
-                      <Button onClick={toggleDatePopover}>Cancel</Button>
-                      <Button onClick={toggleDatePopover} variant="primary" tone="success">Apply</Button>
-                    </div>
+                    <Button onClick={toggleDatePopover} variant="primary" tone="success">Apply</Button>
                   </BlockStack>
                 </Box>
               </Popover>
-
               <Text as="span" tone="subdued">Compared to {formatDateForComparison(selectedDates.start, selectedDates.end)}</Text>
-
-              <Popover active={productPopoverActive} activator={productActivator} onClose={toggleProductPopover}>
-                <div style={{ minWidth: "200px" }}><ActionList items={productOptions} /></div>
-              </Popover>
-
-              <Popover active={deliveryStatusPopoverActive} activator={deliveryStatusActivator} onClose={toggleDeliveryStatusPopover}>
-                <div style={{ minWidth: "150px" }}><ActionList items={deliveryStatusOptions} /></div>
-              </Popover>
-
-              {/* State Filter */}
-              <Popover
-                active={statePopoverActive}
-                activator={
-                  <Button onClick={toggleStatePopover} icon={FilterIcon}>
-                    {stateFilter}
-                  </Button>
-                }
-                onClose={toggleStatePopover}
-              >
-                <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
-                  <ActionList items={stateOptions} />
-                </div>
-              </Popover>
-
-              {/* City Filter */}
-              <Popover
-                active={cityPopoverActive}
-                activator={
-                  <Button onClick={toggleCityPopover} icon={FilterIcon}>
-                    {cityFilter}
-                  </Button>
-                }
-                onClose={toggleCityPopover}
-              >
-                <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
-                  <ActionList items={cityOptions} />
-                </div>
-              </Popover>
-
-              {/* Pincode Filter */}
-              <Popover
-                active={pincodePopoverActive}
-                activator={
-                  <Button onClick={togglePincodePopover} icon={FilterIcon}>
-                    {pincodeFilter}
-                  </Button>
-                }
-                onClose={togglePincodePopover}
-              >
-                <div style={{ minWidth: "160px", maxHeight: "260px", overflowY: "auto" }}>
-                  <ActionList items={pincodeOptions} />
-                </div>
-              </Popover>
-
-              {/* Courier Filter */}
-              <Popover
-                active={courierPopoverActive}
-                activator={
-                  <Button onClick={toggleCourierPopover} icon={FilterIcon}>
-                    {courierFilter}
-                  </Button>
-                }
-                onClose={toggleCourierPopover}
-              >
-                <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
-                  <ActionList items={courierOptions} />
-                </div>
-              </Popover>
+              <Popover active={productPopoverActive} activator={<Button onClick={toggleProductPopover} icon={FilterIcon}>{productFilter}</Button>} onClose={toggleProductPopover}><div style={{ minWidth: "200px" }}><ActionList items={productOptions} /></div></Popover>
+              <Popover active={deliveryStatusPopoverActive} activator={<Button onClick={toggleDeliveryStatusPopover} icon={FilterIcon}>{deliveryStatusFilter}</Button>} onClose={toggleDeliveryStatusPopover}><div style={{ minWidth: "150px" }}><ActionList items={deliveryStatusOptions} /></div></Popover>
+              <Popover active={statePopoverActive} activator={<Button onClick={toggleStatePopover} icon={FilterIcon}>{stateFilter}</Button>} onClose={toggleStatePopover}><div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}><ActionList items={stateOptions} /></div></Popover>
+              <Popover active={cityPopoverActive} activator={<Button onClick={toggleCityPopover} icon={FilterIcon}>{cityFilter}</Button>} onClose={toggleCityPopover}><div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}><ActionList items={cityOptions} /></div></Popover>
+              <Popover active={pincodePopoverActive} activator={<Button onClick={togglePincodePopover} icon={FilterIcon}>{pincodeFilter}</Button>} onClose={togglePincodePopover}><div style={{ minWidth: "160px", maxHeight: "260px", overflowY: "auto" }}><ActionList items={pincodeOptions} /></div></Popover>
+              <Popover active={courierPopoverActive} activator={<Button onClick={toggleCourierPopover} icon={FilterIcon}>{courierFilter}</Button>} onClose={toggleCourierPopover}><div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}><ActionList items={courierOptions} /></div></Popover>
             </InlineStack>
 
             <div style={{ backgroundColor: "#fff", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: "16px" }}>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", tableLayout: "fixed" }}>
                   <colgroup>
-                    <col style={{ width: "100px" }} />{/* Order */}
-                    <col style={{ width: "110px" }} />{/* Order Date */}
-                    <col style={{ width: "150px" }} />{/* Customer */}
-                    <col style={{ width: "260px" }} />{/* Item */}
-                    <col style={{ width: "130px" }} />{/* Tracking Status */}
-                    <col style={{ width: "120px" }} />{/* Fulfillment */}
-                    <col style={{ width: "150px" }} />{/* Payment */}
-                    <col style={{ width: "110px" }} />{/* State */}
-                    <col style={{ width: "150px" }} />{/* City */}
-                    <col style={{ width: "100px" }} />{/* Pincode */}
+                    <col style={{ width: "100px" }} />
+                    <col style={{ width: "110px" }} />
+                    <col style={{ width: "150px" }} />
+                    <col style={{ width: "260px" }} />
+                    <col style={{ width: "130px" }} />
+                    <col style={{ width: "120px" }} />
+                    <col style={{ width: "150px" }} />
+                    <col style={{ width: "110px" }} />
+                    <col style={{ width: "150px" }} />
+                    <col style={{ width: "100px" }} />
                   </colgroup>
                   <thead style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                     <tr>
@@ -832,10 +515,16 @@ export default function Orders() {
                       <tr><td colSpan="10" style={{ padding: "24px", textAlign: "center", color: "#6b7280" }}>No orders found matching filters</td></tr>
                     ) : (
                       filteredOrders.map((order, index) => {
-                        const customerName = order.customer ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer" : "No Customer";
+                        const customerName = order.customer
+                          ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer"
+                          : "No Customer";
 
                         let trackingStatus = "N/A";
-                        const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'RTO' && order.orderDeliveryStatus !== 'rto_failed');
+                        const isConnectorNoTracking = order.connectorName && (
+                          order.orderDeliveryStatus !== 'delivered' &&
+                          order.orderDeliveryStatus !== 'fulfilled' &&
+                          order.orderDeliveryStatus !== 'rto_failed'
+                        );
                         if (isConnectorNoTracking) {
                           trackingStatus = `dispatched_by_${order.connectorName.toLowerCase()}`;
                         } else if (order.fulfillments && order.fulfillments.length > 0) {

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
+import { normalizeDeliveryStatus, getThirdPartyConnectorName } from "../utils/orders";
 
 import {
   AppProvider,
@@ -33,81 +34,10 @@ import {
   Cell
 } from 'recharts';
 
-function normalizeDeliveryStatus(fulfillmentStatus) {
-  const statusLower = (fulfillmentStatus || '').toLowerCase();
-
-  // Explicitly catch failure states first
-  if (statusLower.includes('rto') || statusLower.includes('return') || statusLower.includes('fail') || statusLower.includes('error') || statusLower.includes('canceled') || statusLower.includes('not_delivered')) {
-    return 'rto_failed';
-  } else if (statusLower === 'delivered') { // Explicit 'delivered' check without wildcards or fulfilled
-    return 'delivered';
-  } else if (statusLower.includes('out') && statusLower.includes('delivery')) {
-    return 'out_for_delivery';
-  }
-
-  return 'in_transit'; // Covers 'fulfilled', 'in_transit', 'pending', etc.
-}
-
-function getThirdPartyConnectorName(order) {
-  const source = (order.sourceName || '').toLowerCase().trim();
-  const tags = (order.tags || []).map(t => t.toLowerCase().trim());
-
-  // Strict whitelist: only known ecommerce marketplace platforms
-  // connected via third-party multi-channel connectors (e.g. CedCommerce, Codisto, Linnworks)
-  // Each entry: [keyword_to_match, display_name]
-  const ECOMMERCE_PLATFORMS = [
-    ['amazon', 'Amazon'],
-    ['ebay', 'eBay'],
-    ['walmart', 'Walmart'],
-    ['etsy', 'Etsy'],
-    ['flipkart', 'Flipkart'],
-    ['meesho', 'Meesho'],
-    ['myntra', 'Myntra'],
-    ['nykaa', 'Nykaa'],
-    ['ajio', 'Ajio'],
-    ['jiomar', 'JioMart'],
-    ['snapdeal', 'Snapdeal'],
-    ['tatacliq', 'TataCliq'],
-    ['glowroad', 'GlowRoad'],
-    ['shopclues', 'ShopClues'],
-    ['paytmmall', 'Paytm Mall'],
-    ['shopee', 'Shopee'],
-    ['lazada', 'Lazada'],
-    ['tokopedia', 'Tokopedia'],
-    ['tiktokshop', 'TikTok Shop'],
-    ['tiktok shop', 'TikTok Shop'],
-    ['aliexpress', 'AliExpress'],
-    ['alibaba', 'Alibaba'],
-    ['noon', 'Noon'],
-    ['woocommerce', 'WooCommerce'],
-    ['magento', 'Magento'],
-    ['bigcommerce', 'BigCommerce'],
-    ['prestashop', 'PrestaShop'],
-    ['opencart', 'OpenCart'],
-  ];
-
-  // Check source name against whitelist (exact or substring match)
-  for (const [keyword, displayName] of ECOMMERCE_PLATFORMS) {
-    if (source.includes(keyword)) {
-      return displayName;
-    }
-  }
-
-  // Check tags against whitelist
-  for (const tag of tags) {
-    for (const [keyword, displayName] of ECOMMERCE_PLATFORMS) {
-      if (tag.includes(keyword)) {
-        return displayName;
-      }
-    }
-  }
-
-  return null;
-}
+// normalizeDeliveryStatus and getThirdPartyConnectorName are imported from app/utils/orders.js
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
-  const shop = session.shop;
+  const { admin } = await authenticate.admin(request);
 
   // ── 1. Fetch all store products (paginated) ──────────────────────────────
   let allStoreProducts = [];
@@ -850,6 +780,12 @@ function RtoCard({ title, label, data, fullWidth = false, showInTransit = false 
   const [sortField, setSortField] = useState('rtoPct'); // Default RTO %
   const [sortDir, setSortDir] = useState('desc');   // Default descending
 
+  // Layout constants — declared early so renderSortHeader can reference `pad`
+  const pad = fullWidth ? '10px 16px' : '10px 10px';
+  const pieW = fullWidth ? 200 : 170;
+  const innerR = fullWidth ? 50 : 42;
+  const outerR = fullWidth ? 80 : 68;
+
   // Sort the full dataset based on active sort options
   const sortedData = useMemo(() => {
     return [...data].sort((a, b) => {
@@ -923,10 +859,6 @@ function RtoCard({ title, label, data, fullWidth = false, showInTransit = false 
 
   // Pie always shows top-5 by current sorted order for clarity
   const pieData = sortedData.slice(0, 5);
-  const pieW = fullWidth ? 200 : 170;
-  const innerR = fullWidth ? 50 : 42;
-  const outerR = fullWidth ? 80 : 68;
-  const pad = fullWidth ? '10px 16px' : '10px 10px';
 
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
@@ -1246,38 +1178,39 @@ export default function Index() {
   }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter, courierFilter]);
 
   // Compute Metrics
+  // Each order falls into EXACTLY ONE bucket so all cards always sum to Total Orders:
+  //   Delivered | In-Transit | Failed | Dispatched-by-X (connector) | Unfulfilled (no tracking)
   const metrics = useMemo(() => {
-    let pending = 0;
-    let shipped = 0;
-    let fulfilled = 0;
-    let failed = 0;
-    let unfulfilled = 0;
+    let unfulfilled = 0; // orders with no delivery tracking and not a connector order
+    let shipped = 0;     // in_transit / out_for_delivery
+    let fulfilled = 0;   // delivered
+    let failed = 0;      // rto_failed
     const connectorCounts = {};
 
     filteredOrders.forEach(order => {
-      const status = (order.displayFulfillmentStatus || '').toLowerCase();
-      if (status !== 'fulfilled') unfulfilled++;
-
-      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+      // Connector order with no resolved delivery status → its own bucket
+      const isConnectorNoTracking = order.connectorName && (
+        order.orderDeliveryStatus !== 'delivered' &&
+        order.orderDeliveryStatus !== 'fulfilled' &&
+        order.orderDeliveryStatus !== 'rto_failed'
+      );
 
       if (isConnectorNoTracking) {
         connectorCounts[order.connectorName] = (connectorCounts[order.connectorName] || 0) + 1;
+      } else if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
+        fulfilled++;
+      } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
+        shipped++;
+      } else if (order.orderDeliveryStatus === 'rto_failed') {
+        failed++;
       } else {
-        if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
-          fulfilled++;
-        } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
-          shipped++;
-        } else if (order.orderDeliveryStatus === 'rto_failed') {
-          failed++;
-        } else {
-          pending++; // If unknown or anything else, consider pending
-        }
+        // No tracking info at all — shown as "Unfulfilled"
+        unfulfilled++;
       }
     });
 
     return {
       totalOrders: filteredOrders.length,
-      pending,
       shipped,
       fulfilled,
       failed,
