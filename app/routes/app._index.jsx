@@ -110,6 +110,7 @@ export const loader = async ({ request }) => {
                 edges {
                   node {
                     title
+                    quantity
                     product {
                       id
                       productType
@@ -194,10 +195,10 @@ export const loader = async ({ request }) => {
     const hasReturnStatus = returnStatusVal !== '' && returnStatusVal !== 'NO_RETURN';
     const connectorReturnClosed = connectorName
       ? hasReturnStatus ||
-        (order.tags || []).some(tag => {
-          const t = tag.toLowerCase().replace(/[_\s]/g, '-');
-          return t === 'return-closed' || t === 'returned' || t === 'return-complete' || t === 'refund-complete';
-        })
+      (order.tags || []).some(tag => {
+        const t = tag.toLowerCase().replace(/[_\s]/g, '-');
+        return t === 'return-closed' || t === 'returned' || t === 'return-complete' || t === 'refund-complete';
+      })
       : false;
 
     if (order.fulfillments && order.fulfillments.length > 0) {
@@ -267,9 +268,9 @@ function ConnectorStatusCard({ orders }) {
   });
 
   const pieData = [
-    { name: 'In Transit',   value: counts['In Transit'],   color: '#3b82f6' },
-    { name: 'Delivered',    value: counts['Delivered'],    color: '#10b981' },
-    { name: 'Unfulfilled',  value: counts['Unfulfilled'],  color: '#f59e0b' },
+    { name: 'In Transit', value: counts['In Transit'], color: '#3b82f6' },
+    { name: 'Delivered', value: counts['Delivered'], color: '#10b981' },
+    { name: 'Unfulfilled', value: counts['Unfulfilled'], color: '#f59e0b' },
     { name: 'RTO / Failed', value: counts['RTO / Failed'], color: '#ef4444' },
   ].filter(d => d.value > 0);
 
@@ -987,8 +988,8 @@ function IndiaHeatMap({ statesData }) {
           fontWeight: '500'
         }}>
           {[
-            { label: '<5%', color: '#00b480' },
-            { label: '5-10%', color: '#2ec175' },
+            { label: '<5%', color: '#00f1adff' },
+            { label: '5-10%', color: '#339765ff' },
             { label: '10-15%', color: '#84cc16' },
             { label: '15-20%', color: '#eab308' },
             { label: '20-25%', color: '#f97316' },
@@ -1457,16 +1458,21 @@ export default function Index() {
     filteredOrders.forEach(order => {
       const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
       if (isConnectorNoTracking) return;
-      const products = new Set((order.lineItems?.edges || []).map(e => e.node.title).filter(t => t && activeProductSet.has(t)));
-      products.forEach(productTitle => {
-        if (!productMap[productTitle]) productMap[productTitle] = { delivered: 0, rto: 0, inTransit: 0, total: 0 };
-        productMap[productTitle].total++;
+      (order.lineItems?.edges || []).forEach(e => {
+        const productTitle = e.node?.title;
+        if (!productTitle || !activeProductSet.has(productTitle)) return;
+        const qty = e.node.quantity || 1;
+
+        if (!productMap[productTitle]) {
+          productMap[productTitle] = { delivered: 0, rto: 0, inTransit: 0, total: 0 };
+        }
+        productMap[productTitle].total += qty;
         if (order.orderDeliveryStatus === 'rto_failed') {
-          productMap[productTitle].rto++;
+          productMap[productTitle].rto += qty;
         } else if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
-          productMap[productTitle].delivered++;
+          productMap[productTitle].delivered += qty;
         } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
-          productMap[productTitle].inTransit++;
+          productMap[productTitle].inTransit += qty;
         }
       });
     });
