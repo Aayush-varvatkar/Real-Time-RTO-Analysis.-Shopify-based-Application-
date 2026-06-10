@@ -14,7 +14,7 @@ import {
 import { CalendarIcon, FilterIcon } from '@shopify/polaris-icons';
 import { getThirdPartyConnectorName } from "../utils/orders";
 
-export default function OrderFilters({
+export default function Filters({
   // Orders and products catalog data
   orders = [],
   storeProducts = [],

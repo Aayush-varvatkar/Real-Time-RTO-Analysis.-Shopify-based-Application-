@@ -1,0 +1,196 @@
+import { useState, useMemo } from "react";
+
+const RTO_COLORS = ['#ef4444', '#f97316', '#eab308', '#8b5cf6', '#06b6d4'];
+const CARD_DEFAULT = 5;
+const CARD_PAGE = 20;
+
+export default function ProductRTO({ data }) {
+  const [expanded, setExpanded] = useState(false);
+  const [page, setPage] = useState(0);
+  const [sortField, setSortField] = useState('total'); // default: highest total orders
+  const [sortDir, setSortDir] = useState('desc');
+
+  const sortedData = useMemo(() => {
+    return [...data].sort((a, b) => {
+      const valA = a[sortField] ?? 0;
+      const valB = b[sortField] ?? 0;
+      return sortDir === 'desc' ? valB - valA : valA - valB;
+    });
+  }, [data, sortField, sortDir]);
+
+  const totals = useMemo(() => {
+    let totalOrders = 0;
+    let totalDelivered = 0;
+    let totalRto = 0;
+    let totalInTransit = 0;
+    data.forEach(row => {
+      totalOrders += row.total ?? 0;
+      totalDelivered += row.delivered ?? 0;
+      totalRto += row.rto ?? 0;
+      totalInTransit += row.inTransit ?? 0;
+    });
+    const rtoPct = totalOrders > 0 ? +((totalRto / totalOrders) * 100).toFixed(1) : 0;
+    return {
+      total: totalOrders,
+      delivered: totalDelivered,
+      rto: totalRto,
+      inTransit: totalInTransit,
+      rtoPct
+    };
+  }, [data]);
+
+  const visibleRows = expanded
+    ? sortedData.slice(page * CARD_PAGE, (page + 1) * CARD_PAGE)
+    : sortedData.slice(0, CARD_DEFAULT);
+
+  const totalPages = Math.ceil(sortedData.length / CARD_PAGE);
+  const showPagination = expanded && sortedData.length > CARD_PAGE;
+
+  const handleToggle = () => { setExpanded(e => !e); setPage(0); };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+    setPage(0);
+  };
+
+  const renderSortHeader = (field, displayName, align = 'center') => {
+    const isActive = sortField === field;
+    const arrow = isActive ? (sortDir === 'desc' ? '⮝' : '⮟') : '⮝';
+    return (
+      <th
+        style={{
+          padding: '10px 12px',
+          textAlign: align,
+          color: '#6b7280',
+          fontWeight: '600',
+          cursor: 'pointer',
+          userSelect: 'none',
+          transition: 'color 0.15s ease',
+          whiteSpace: 'nowrap',
+        }}
+        onClick={() => handleSort(field)}
+        onMouseEnter={(e) => e.currentTarget.style.color = '#111827'}
+        onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+          {displayName}
+          <span style={{ fontWeight: '800', fontSize: '11px', color: isActive ? '#6366f1' : '#d1d5db' }}>
+            {arrow}
+          </span>
+        </span>
+      </th>
+    );
+  };
+
+  return (
+    <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
+      {/* Header */}
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid #f3f4f6', backgroundColor: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: '15px', fontWeight: '700', color: '#111827' }}>📦 Product RTO</span>
+        {data.length > CARD_DEFAULT && (
+          <button
+            onClick={handleToggle}
+            style={{ fontSize: '12px', fontWeight: '600', color: '#6366f1', background: '#eef2ff', border: 'none', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer' }}
+          >
+            {expanded ? 'View Less ↑' : `View All (${data.length}) ↓`}
+          </button>
+        )}
+      </div>
+
+      {data.length === 0 ? (
+        <div style={{ padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>No product data in selected period</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f9fafb' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '36px' }}>#</th>
+                  {renderSortHeader('name', 'Product', 'left')}
+                  {renderSortHeader('total', 'Total Orders')}
+                  {renderSortHeader('delivered', 'Delivered')}
+                  {renderSortHeader('rto', 'RTO')}
+                  {renderSortHeader('inTransit', 'In Transit')}
+                  {renderSortHeader('rtoPct', 'RTO %')}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row, i) => {
+                  const globalIdx = expanded ? page * CARD_PAGE + i : i;
+                  return (
+                    <tr key={row.name} style={{ borderTop: '1px solid #f3f4f6', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: globalIdx < 5 ? RTO_COLORS[globalIdx] : '#9ca3af' }}>
+                        {globalIdx + 1}
+                      </td>
+                      <td title={row.name} style={{ padding: '10px 12px', color: '#111827', fontWeight: '500', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}>
+                        {row.name}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>{row.total}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{row.inTransit}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                        <span style={{
+                          backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',
+                          color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46',
+                          padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '11px'
+                        }}>
+                          {row.rtoPct}%
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {expanded && (
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid #9ca3af', borderBottom: '2px solid #9ca3af', backgroundColor: '#f9fafb', fontWeight: '700' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9ca3af', fontWeight: '700' }}>-</td>
+                    <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '700' }}>Total</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{totals.total}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '700' }}>{totals.delivered}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '800' }}>{totals.rto}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '700' }}>{totals.inTransit}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <span style={{
+                        backgroundColor: totals.rtoPct >= 50 ? '#fee2e2' : totals.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',
+                        color: totals.rtoPct >= 50 ? '#991b1b' : totals.rtoPct >= 25 ? '#92400e' : '#065f46',
+                        padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '11px'
+                      }}>
+                        {totals.rtoPct}%
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {showPagination && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid #f3f4f6', backgroundColor: '#fafafa' }}>
+              <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                {page * CARD_PAGE + 1}–{Math.min((page + 1) * CARD_PAGE, data.length)} of {data.length}
+              </span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                  style={{ fontSize: '12px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', background: page === 0 ? '#f9fafb' : '#fff', color: page === 0 ? '#9ca3af' : '#374151', cursor: page === 0 ? 'default' : 'pointer' }}>
+                  ← Prev
+                </button>
+                <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                  style={{ fontSize: '12px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', background: page >= totalPages - 1 ? '#f9fafb' : '#fff', color: page >= totalPages - 1 ? '#9ca3af' : '#374151', cursor: page >= totalPages - 1 ? 'default' : 'pointer' }}>
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { normalizeDeliveryStatus, getThirdPartyConnectorName } from "../utils/orders";
-import OrderFilters from "../components/OrderFilters";
+import Filters from "../components/Filters";
 
 import {
   AppProvider,
@@ -311,7 +311,7 @@ export default function Orders() {
       <div style={{ padding: "2rem" }}>
         <Page title="Orders" fullWidth primaryAction={<Button icon={ExportIcon} variant="primary" onClick={handleExportCSV} disabled={filteredOrders.length === 0}>Export CSV ({filteredOrders.length})</Button>}>
           <BlockStack gap="400">
-            <OrderFilters
+            <Filters
               orders={orders}
               storeProducts={storeProducts}
               selectedDates={selectedDates}
