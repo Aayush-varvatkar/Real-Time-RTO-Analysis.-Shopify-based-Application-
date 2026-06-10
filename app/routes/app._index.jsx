@@ -1131,6 +1131,11 @@ export default function Index() {
   const togglePincodePopover = useCallback(() => setPincodePopoverActive((a) => !a), []);
   const [pincodeFilter, setPincodeFilter] = useState("All Pincodes");
 
+  // Courier Filter State
+  const [courierPopoverActive, setCourierPopoverActive] = useState(false);
+  const toggleCourierPopover = useCallback(() => setCourierPopoverActive((a) => !a), []);
+  const [courierFilter, setCourierFilter] = useState("All Couriers");
+
   // Use store products directly (from loader) — only real catalog products appear here
   const uniqueProducts = useMemo(() => storeProducts, [storeProducts]);
 
@@ -1162,6 +1167,16 @@ export default function Index() {
     });
     return Array.from(vals).sort();
   }, [orders, stateFilter, cityFilter]);
+
+  // Extract unique couriers from ALL orders (from fulfillment tracking info)
+  const uniqueCouriers = useMemo(() => {
+    const vals = new Set();
+    orders.forEach(o => {
+      const company = o.fulfillments?.[0]?.trackingInfo?.[0]?.company;
+      if (company && company.trim()) vals.add(company.trim());
+    });
+    return Array.from(vals).sort();
+  }, [orders]);
 
   // Filter logic
   const filteredOrders = useMemo(() => {
@@ -1220,9 +1235,15 @@ export default function Index() {
         if (order.shippingPincode !== pincodeFilter) return false;
       }
 
+      // 7. Courier Filter
+      if (courierFilter !== "All Couriers") {
+        const orderCourier = order.fulfillments?.[0]?.trackingInfo?.[0]?.company?.trim();
+        if (orderCourier !== courierFilter) return false;
+      }
+
       return true;
     });
-  }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter]);
+  }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter, courierFilter]);
 
   // Compute Metrics
   const metrics = useMemo(() => {
@@ -1532,6 +1553,14 @@ export default function Index() {
     }))
   ];
 
+  const courierOptions = [
+    { content: "All Couriers", onAction: () => { setCourierFilter("All Couriers"); toggleCourierPopover(); } },
+    ...uniqueCouriers.map(c => ({
+      content: c,
+      onAction: () => { setCourierFilter(c); toggleCourierPopover(); }
+    }))
+  ];
+
   const styles = {
     grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginTop: "32px", marginBottom: "32px" },
     card: {
@@ -1679,6 +1708,21 @@ export default function Index() {
               >
                 <div style={{ minWidth: "160px", maxHeight: "260px", overflowY: "auto" }}>
                   <ActionList items={pincodeOptions} />
+                </div>
+              </Popover>
+
+              {/* Courier Filter */}
+              <Popover
+                active={courierPopoverActive}
+                activator={
+                  <Button onClick={toggleCourierPopover} icon={FilterIcon}>
+                    {courierFilter}
+                  </Button>
+                }
+                onClose={toggleCourierPopover}
+              >
+                <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
+                  <ActionList items={courierOptions} />
                 </div>
               </Popover>
             </InlineStack>
