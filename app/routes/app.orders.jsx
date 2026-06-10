@@ -351,7 +351,7 @@ export default function Orders() {
         } else if (deliveryStatusFilter === "In-Transit") {
           const isConnectorNoTracking = order.connectorName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'rto_failed');
           statusMatches = !isConnectorNoTracking && (orderStatus === 'in_transit' || orderStatus === 'out_for_delivery');
-        } else if (deliveryStatusFilter === "Failed") {
+        } else if (deliveryStatusFilter === "RTO") {
           statusMatches = (orderStatus === 'rto_failed');
         } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
           const connName = deliveryStatusFilter.replace("Dispatched by ", "");
@@ -387,9 +387,19 @@ export default function Orders() {
           trackingStatus = normalizeDeliveryStatus(f.displayStatus || f.status);
         }
       }
+      
+      let displayTracking = trackingStatus;
+      if (trackingStatus === 'rto_failed') displayTracking = 'RTO';
+      else if (trackingStatus === 'in_transit') displayTracking = 'In Transit';
+      else if (trackingStatus === 'out_for_delivery') displayTracking = 'Out for Delivery';
+      else if (trackingStatus === 'delivered') displayTracking = 'Delivered';
+      else if (trackingStatus.startsWith('dispatched_by_')) {
+        displayTracking = `Dispatched by ${trackingStatus.replace('dispatched_by_', '').toUpperCase()}`;
+      }
+
       const orderDate = new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
       const escape = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-      return [escape(order.name), escape(orderDate), escape(customerName), escape(items), escape(trackingStatus), escape(order.displayFulfillmentStatus || 'UNFULFILLED'), escape(order.totalPriceSet?.shopMoney?.amount || '0.00'), escape(order.displayFinancialStatus || 'N/A'), escape(order.shippingState || ''), escape(order.shippingCity || ''), escape(order.shippingPincode || '')].join(',');
+      return [escape(order.name), escape(orderDate), escape(customerName), escape(items), escape(displayTracking), escape(order.displayFulfillmentStatus || 'UNFULFILLED'), escape(order.totalPriceSet?.shopMoney?.amount || '0.00'), escape(order.displayFinancialStatus || 'N/A'), escape(order.shippingState || ''), escape(order.shippingCity || ''), escape(order.shippingPincode || '')].join(',');
     });
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -420,7 +430,7 @@ export default function Orders() {
   }, [orders]);
 
   const deliveryStatusOptions = useMemo(() => {
-    const options = [{ content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } }, { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } }, { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } }, { content: "Failed", onAction: () => { setDeliveryStatusFilter("Failed"); toggleDeliveryStatusPopover(); } }];
+    const options = [{ content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } }, { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } }, { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } }, { content: "RTO", onAction: () => { setDeliveryStatusFilter("RTO"); toggleDeliveryStatusPopover(); } }];
     uniqueConnectors.forEach(conn => options.push({ content: `Dispatched by ${conn}`, onAction: () => { setDeliveryStatusFilter(`Dispatched by ${conn}`); toggleDeliveryStatusPopover(); } }));
     return options;
   }, [uniqueConnectors]);
@@ -432,12 +442,13 @@ export default function Orders() {
 
   const getStatusBadge = (status) => {
     let bgColor = "#f3f4f6", textColor = "#374151";
+    let text = status.replace(/_/g, " ");
     if (status === "delivered") { bgColor = "#dcfce7"; textColor = "#166534"; }
     else if (status === "in_transit") { bgColor = "#dbeafe"; textColor = "#1e40af"; }
     else if (status === "out_for_delivery") { bgColor = "#fef08a"; textColor = "#854d0e"; }
-    else if (status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; }
-    else if (status.startsWith("dispatched_by_")) { bgColor = "#e0f2fe"; textColor = "#0369a1"; }
-    return <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>{status.startsWith("dispatched_by_") ? `Dispatched by ${status.replace("dispatched_by_", "").toUpperCase()}` : status.replace(/_/g, " ")}</span>;
+    else if (status === "rto_failed") { bgColor = "#fee2e2"; textColor = "#991b1b"; text = "RTO"; }
+    else if (status.startsWith("dispatched_by_")) { bgColor = "#e0f2fe"; textColor = "#0369a1"; text = `Dispatched by ${status.replace("dispatched_by_", "").toUpperCase()}`; }
+    return <span style={{ backgroundColor: bgColor, color: textColor, padding: "4px 12px", borderRadius: "16px", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>{text}</span>;
   };
 
   const getFulfillmentBadge = (status) => {
