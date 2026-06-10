@@ -7,6 +7,7 @@ import RTOAnalysis from "../components/RTOAnalysis";
 import IndiaHeatMap from "../components/IndiaHeatMap";
 import Filters from "../components/Filters";
 import ConnectorStatusCard from "../components/ConnectorStatusCard";
+import RevenueCards from "../components/RevenueCards";
 
 import {
   AppProvider,
@@ -669,6 +670,8 @@ export default function Index() {
                 </div>
               ))}
             </div>
+
+            <RevenueCards orders={filteredOrders} />
 
             <div style={styles.section}>
               <div style={styles.cardTitleOuter}>
