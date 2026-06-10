@@ -483,18 +483,18 @@ export default function Orders() {
 
             <div style={{ backgroundColor: "#fff", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: "16px" }}>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", tableLayout: "fixed" }}>
+                <table style={{ width: "100%", minWidth: "1280px", borderCollapse: "collapse", textAlign: "left", tableLayout: "fixed" }}>
                   <colgroup>
                     <col style={{ width: "100px" }} />
-                    <col style={{ width: "110px" }} />
-                    <col style={{ width: "150px" }} />
-                    <col style={{ width: "260px" }} />
-                    <col style={{ width: "130px" }} />
                     <col style={{ width: "120px" }} />
                     <col style={{ width: "150px" }} />
+                    <col style={{ width: "250px" }} />
+                    <col style={{ width: "190px" }} />
+                    <col style={{ width: "120px" }} />
+                    <col style={{ width: "130px" }} />
                     <col style={{ width: "110px" }} />
-                    <col style={{ width: "150px" }} />
-                    <col style={{ width: "100px" }} />
+                    <col style={{ width: "120px" }} />
+                    <col style={{ width: "90px" }} />
                   </colgroup>
                   <thead style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                     <tr>
