@@ -89,3 +89,47 @@ export function getThirdPartyConnectorName(order) {
 
   return null;
 }
+
+export function getIsConnectorNoTracking(order, connName = null) {
+  const nameMatch = connName ? order.connectorName === connName : !!order.connectorName;
+  const status = order.orderDeliveryStatus;
+  return !!nameMatch && (status !== 'delivered' && status !== 'fulfilled' && status !== 'rto_failed');
+}
+
+export function enrichConnectorOrderDetails(order) {
+  const connectorName = getThirdPartyConnectorName(order);
+  let connectorLatestDeliveryDate = null;
+  let connectorEarliestDeliveryDate = null;
+  if (connectorName && Array.isArray(order.customAttributes)) {
+    for (const attr of order.customAttributes) {
+      const keyLower = (attr.key || '').toLowerCase();
+      // Prefer "latest delivery date" over "earliest"
+      if (keyLower.includes('latest') && keyLower.includes('delivery')) {
+        connectorLatestDeliveryDate = attr.value || null;
+      } else if (!connectorLatestDeliveryDate && keyLower.includes('delivery') && (keyLower.includes('date') || keyLower.includes('earliest'))) {
+        connectorEarliestDeliveryDate = attr.value || null;
+      }
+    }
+    // Fall back to earliest if no latest found
+    if (!connectorLatestDeliveryDate && connectorEarliestDeliveryDate) {
+      connectorLatestDeliveryDate = connectorEarliestDeliveryDate;
+    }
+  }
+
+  // Detect return for connector orders
+  const returnStatusVal = (order.returnStatus || '').toUpperCase();
+  const hasReturnStatus = returnStatusVal !== '' && returnStatusVal !== 'NO_RETURN';
+  const connectorReturnClosed = connectorName
+    ? hasReturnStatus ||
+      (order.tags || []).some(tag => {
+        const t = tag.toLowerCase().replace(/[_\s]/g, '-');
+        return t === 'return-closed' || t === 'returned' || t === 'return-complete' || t === 'refund-complete';
+      })
+    : false;
+
+  return {
+    connectorName,
+    connectorLatestDeliveryDate,
+    connectorReturnClosed,
+  };
+}

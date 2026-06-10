@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { normalizeDeliveryStatus, getThirdPartyConnectorName } from "../utils/orders";
+import { normalizeDeliveryStatus, enrichConnectorOrderDetails, getIsConnectorNoTracking } from "../utils/orders";
 import ProductRTO from "../components/ProductRTO";
 import RTOAnalysis from "../components/RTOAnalysis";
 import IndiaHeatMap from "../components/IndiaHeatMap";
 import Filters from "../components/Filters";
+import ConnectorStatusCard from "../components/ConnectorStatusCard";
 
 import {
   AppProvider,
@@ -154,45 +155,7 @@ export const loader = async ({ request }) => {
     const shippingCity = (order.shippingAddress?.city || '').trim();
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
-
-    const connectorName = getThirdPartyConnectorName(order);
-
-    // ── Extract connector delivery date from customAttributes ──
-    // Marketplace Connect writes these as order custom attributes visible in
-    // "Additional details" on the Shopify order page, e.g.:
-    //   "Amazon Latest Delivery Date" = "2026-06-10T18:29:59.000Z"
-    //   "Amazon Earliest Delivery Date" = "2026-06-09T18:30:00.000Z"
-    let connectorLatestDeliveryDate = null;
-    let connectorEarliestDeliveryDate = null;
-    if (connectorName && Array.isArray(order.customAttributes)) {
-      for (const attr of order.customAttributes) {
-        const keyLower = (attr.key || '').toLowerCase();
-        // Prefer "latest delivery date" over "earliest"
-        if (keyLower.includes('latest') && keyLower.includes('delivery')) {
-          connectorLatestDeliveryDate = attr.value || null;
-        } else if (!connectorLatestDeliveryDate && keyLower.includes('delivery') && (keyLower.includes('date') || keyLower.includes('earliest'))) {
-          connectorEarliestDeliveryDate = attr.value || null;
-        }
-      }
-      // Fall back to earliest if no latest found
-      if (!connectorLatestDeliveryDate && connectorEarliestDeliveryDate) {
-        connectorLatestDeliveryDate = connectorEarliestDeliveryDate;
-      }
-    }
-
-    // ── Detect return for connector orders ──
-    // Any non-empty returnStatus other than NO_RETURN means the order has an active/closed return.
-    // This catches INSPECTION_COMPLETE (Return closed badge), IN_PROGRESS, RETURN_REQUESTED, RETURN_FAILED.
-    // Also falls back to tags written by some connector apps.
-    const returnStatusVal = (order.returnStatus || '').toUpperCase();
-    const hasReturnStatus = returnStatusVal !== '' && returnStatusVal !== 'NO_RETURN';
-    const connectorReturnClosed = connectorName
-      ? hasReturnStatus ||
-      (order.tags || []).some(tag => {
-        const t = tag.toLowerCase().replace(/[_\s]/g, '-');
-        return t === 'return-closed' || t === 'returned' || t === 'return-complete' || t === 'refund-complete';
-      })
-      : false;
+    const connectorDetails = enrichConnectorOrderDetails(order);
 
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
@@ -210,134 +173,15 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName, connectorLatestDeliveryDate, connectorReturnClosed };
+      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, ...connectorDetails };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName, connectorLatestDeliveryDate, connectorReturnClosed };
+    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, ...connectorDetails };
   });
 
   return { orders: enhancedOrders, storeProducts };
 };
 
-// ─── Connector Status Card ────────────────────────────────────────────────────
-function ConnectorStatusCard({ orders }) {
-  const now = new Date();
 
-  // Include ALL connector orders
-  const connectorOrders = orders.filter(o => !!o.connectorName);
-
-  const getConnectorStatus = (order) => {
-    // Any return activity on connector order → RTO / Failed
-    if (order.connectorReturnClosed) return 'RTO / Failed';
-
-    const latestDelivery = order.connectorLatestDeliveryDate
-      ? new Date(order.connectorLatestDeliveryDate)
-      : null;
-    const isFulfilled = (order.displayFulfillmentStatus || '').toLowerCase() === 'fulfilled';
-
-    if (latestDelivery) {
-      if (now >= latestDelivery) {
-        // Past latest delivery date
-        return isFulfilled ? 'Delivered' : 'Unfulfilled';
-      } else {
-        return 'In Transit';
-      }
-    }
-
-    // No delivery date — use fulfillment status
-    return isFulfilled ? 'Delivered' : 'Unfulfilled';
-  };
-
-  // Aggregate counts — 4 categories only
-  const counts = { 'In Transit': 0, 'Delivered': 0, 'Unfulfilled': 0, 'RTO / Failed': 0 };
-  const byPlatform = {};
-
-  connectorOrders.forEach(order => {
-    const status = getConnectorStatus(order);
-    counts[status] = (counts[status] || 0) + 1;
-    const p = order.connectorName;
-    if (!byPlatform[p]) byPlatform[p] = { 'In Transit': 0, 'Delivered': 0, 'Unfulfilled': 0, 'RTO / Failed': 0, total: 0 };
-    byPlatform[p][status] = (byPlatform[p][status] || 0) + 1;
-    byPlatform[p].total++;
-  });
-
-  const pieData = [
-    { name: 'In Transit', value: counts['In Transit'], color: '#3b82f6' },
-    { name: 'Delivered', value: counts['Delivered'], color: '#10b981' },
-    { name: 'Unfulfilled', value: counts['Unfulfilled'], color: '#f59e0b' },
-    { name: 'RTO / Failed', value: counts['RTO / Failed'], color: '#ef4444' },
-  ].filter(d => d.value > 0);
-
-  const platforms = Object.entries(byPlatform);
-
-  if (connectorOrders.length === 0) {
-    return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '13px' }}>
-        No connector orders in selected period
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ flex: 1 }}>
-      {/* Pie chart */}
-      <div style={{ height: 260 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={pieData}
-              dataKey="value"
-              nameKey="name"
-              cx="50%" cy="50%"
-              outerRadius={100}
-              isAnimationActive={false}
-              labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
-              label={({ name, value, x, y, textAnchor }) => (
-                <text x={x} y={y} fill="#111827" fontSize="12" fontWeight="600" textAnchor={textAnchor} dominantBaseline="central">
-                  {name}: {value}
-                </text>
-              )}
-            >
-              {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-            </Pie>
-            <Tooltip
-              formatter={(value, name) => [value, name]}
-              contentStyle={{ fontSize: '12px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
-              wrapperStyle={{ outline: 'none' }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Per-platform breakdown table */}
-      <div style={{ overflowX: 'auto', marginTop: '12px' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>Platform</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>In Transit</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>Delivered</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>Unfulfilled</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>RTO</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {platforms.map(([platform, data]) => (
-              <tr key={platform} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '8px 12px', fontWeight: '600', color: '#111827' }}>{platform}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{data['In Transit'] || 0}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>{data['Delivered'] || 0}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>{data['Unfulfilled'] || 0}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>{data['RTO / Failed'] || 0}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{data.total}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
 const CustomTooltip = ({ active, payload, total }) => {
   if (active && payload && payload.length) {
@@ -486,13 +330,13 @@ export default function Index() {
         if (deliveryStatusFilter === "Delivered") {
           statusMatches = (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled');
         } else if (deliveryStatusFilter === "In-Transit") {
-          const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+          const isConnectorNoTracking = getIsConnectorNoTracking(order);
           statusMatches = !isConnectorNoTracking && (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery');
         } else if (deliveryStatusFilter === "Failed") {
           statusMatches = (order.orderDeliveryStatus === 'rto_failed');
         } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
           const connName = deliveryStatusFilter.replace("Dispatched by ", "");
-          const isConnectorNoTracking = order.connectorName === connName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+          const isConnectorNoTracking = getIsConnectorNoTracking(order, connName);
           statusMatches = isConnectorNoTracking;
         }
         if (!statusMatches) return false;
@@ -535,11 +379,7 @@ export default function Index() {
 
     filteredOrders.forEach(order => {
       // Connector order with no resolved delivery status → its own bucket
-      const isConnectorNoTracking = order.connectorName && (
-        order.orderDeliveryStatus !== 'delivered' &&
-        order.orderDeliveryStatus !== 'fulfilled' &&
-        order.orderDeliveryStatus !== 'rto_failed'
-      );
+      const isConnectorNoTracking = getIsConnectorNoTracking(order);
 
       if (isConnectorNoTracking) {
         connectorCounts[order.connectorName] = (connectorCounts[order.connectorName] || 0) + 1;
@@ -593,7 +433,7 @@ export default function Index() {
 
     // Populate data from orders
     filteredOrders.forEach(order => {
-      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+      const isConnectorNoTracking = getIsConnectorNoTracking(order);
       if (isConnectorNoTracking) {
         return; // Exclude from charts/graphs
       }
@@ -634,7 +474,7 @@ export default function Index() {
     let inTransit = 0;
 
     filteredOrders.forEach(order => {
-      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+      const isConnectorNoTracking = getIsConnectorNoTracking(order);
       if (isConnectorNoTracking) {
         return; // Exclude from charts/graphs
       }
@@ -665,7 +505,7 @@ export default function Index() {
     const groupBy = (keyFn) => {
       const map = {};
       filteredOrders.forEach(order => {
-        const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+        const isConnectorNoTracking = getIsConnectorNoTracking(order);
         if (isConnectorNoTracking) {
           return; // Exclude from charts/graphs
         }
@@ -698,7 +538,7 @@ export default function Index() {
     const activeProductSet = new Set(storeProducts); // storeProducts = active catalog titles from loader
     const productMap = {};
     filteredOrders.forEach(order => {
-      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+      const isConnectorNoTracking = getIsConnectorNoTracking(order);
       if (isConnectorNoTracking) return;
       (order.lineItems?.edges || []).forEach(e => {
         const productTitle = e.node?.title;

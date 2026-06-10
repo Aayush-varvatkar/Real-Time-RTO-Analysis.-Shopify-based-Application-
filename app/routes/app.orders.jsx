@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { normalizeDeliveryStatus, getThirdPartyConnectorName } from "../utils/orders";
+import { normalizeDeliveryStatus, enrichConnectorOrderDetails, getIsConnectorNoTracking } from "../utils/orders";
 import Filters from "../components/Filters";
 
 import {
@@ -143,7 +143,7 @@ export const loader = async ({ request }) => {
     const shippingState = (order.shippingAddress?.province || '').trim();
     const shippingPincode = (order.shippingAddress?.zip || '').trim();
 
-    const connectorName = getThirdPartyConnectorName(order);
+    const connectorDetails = enrichConnectorOrderDetails(order);
 
     if (order.fulfillments && order.fulfillments.length > 0) {
       const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
@@ -161,9 +161,9 @@ export const loader = async ({ request }) => {
         }
         return { ...fulfillment, trackingInfo };
       });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName };
+      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, ...connectorDetails };
     }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, connectorName };
+    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, ...connectorDetails };
   });
 
   return { orders: enhancedOrders, storeProducts };
@@ -217,13 +217,13 @@ export default function Orders() {
         if (deliveryStatusFilter === "Delivered") {
           statusMatches = (orderStatus === 'delivered' || orderStatus === 'fulfilled');
         } else if (deliveryStatusFilter === "In-Transit") {
-          const isConnectorNoTracking = order.connectorName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'rto_failed');
+          const isConnectorNoTracking = getIsConnectorNoTracking(order);
           statusMatches = !isConnectorNoTracking && (orderStatus === 'in_transit' || orderStatus === 'out_for_delivery');
         } else if (deliveryStatusFilter === "RTO") {
           statusMatches = (orderStatus === 'rto_failed');
         } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
           const connName = deliveryStatusFilter.replace("Dispatched by ", "");
-          const isConnectorNoTracking = order.connectorName === connName && (orderStatus !== 'delivered' && orderStatus !== 'fulfilled' && orderStatus !== 'rto_failed');
+          const isConnectorNoTracking = getIsConnectorNoTracking(order, connName);
           statusMatches = isConnectorNoTracking;
         }
         if (!statusMatches) return false;
@@ -244,7 +244,7 @@ export default function Orders() {
       const customerName = order.customer ? `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim() || 'No Customer' : 'No Customer';
       const items = order.lineItems?.edges?.map(e => `${e.node.title} x${e.node.quantity}`).join(' | ') || '';
       let trackingStatus = 'N/A';
-      const isConnectorNoTracking = order.connectorName && (order.orderDeliveryStatus !== 'delivered' && order.orderDeliveryStatus !== 'fulfilled' && order.orderDeliveryStatus !== 'rto_failed');
+      const isConnectorNoTracking = getIsConnectorNoTracking(order);
       if (isConnectorNoTracking) {
         trackingStatus = `Dispatched by ${order.connectorName}`;
       } else if (order.fulfillments && order.fulfillments.length > 0) {
@@ -370,11 +370,7 @@ export default function Orders() {
                           : "No Customer";
 
                         let trackingStatus = "N/A";
-                        const isConnectorNoTracking = order.connectorName && (
-                          order.orderDeliveryStatus !== 'delivered' &&
-                          order.orderDeliveryStatus !== 'fulfilled' &&
-                          order.orderDeliveryStatus !== 'rto_failed'
-                        );
+                        const isConnectorNoTracking = getIsConnectorNoTracking(order);
                         if (isConnectorNoTracking) {
                           trackingStatus = `dispatched_by_${order.connectorName.toLowerCase()}`;
                         } else if (order.fulfillments && order.fulfillments.length > 0) {
