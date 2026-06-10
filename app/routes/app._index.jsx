@@ -591,25 +591,27 @@ function ProductRtoCard({ data }) {
                   );
                 })}
               </tbody>
-              <tfoot>
-                <tr style={{ borderTop: '2px solid #e5e7eb', backgroundColor: '#f9fafb', fontWeight: '700' }}>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9ca3af', fontWeight: '700' }}>-</td>
-                  <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '700' }}>Total</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{totals.total}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '700' }}>{totals.delivered}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '800' }}>{totals.rto}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '700' }}>{totals.inTransit}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                    <span style={{
-                      backgroundColor: totals.rtoPct >= 50 ? '#fee2e2' : totals.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',
-                      color: totals.rtoPct >= 50 ? '#991b1b' : totals.rtoPct >= 25 ? '#92400e' : '#065f46',
-                      padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '11px'
-                    }}>
-                      {totals.rtoPct}%
-                    </span>
-                  </td>
-                </tr>
-              </tfoot>
+              {expanded && (
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid #e5e7eb', backgroundColor: '#f9fafb', fontWeight: '700' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9ca3af', fontWeight: '700' }}>-</td>
+                    <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '700' }}>Total</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{totals.total}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '700' }}>{totals.delivered}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '800' }}>{totals.rto}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '700' }}>{totals.inTransit}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <span style={{
+                        backgroundColor: totals.rtoPct >= 50 ? '#fee2e2' : totals.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',
+                        color: totals.rtoPct >= 50 ? '#991b1b' : totals.rtoPct >= 25 ? '#92400e' : '#065f46',
+                        padding: '2px 8px', borderRadius: '99px', fontWeight: '700', fontSize: '11px'
+                      }}>
+                        {totals.rtoPct}%
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 
