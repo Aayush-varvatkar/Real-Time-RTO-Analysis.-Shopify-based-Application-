@@ -56,6 +56,14 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
     };
   }, [orders, productFilter]);
 
+  const totalConnectorRevenue = useMemo(() => {
+    return Object.values(metrics.connectorRevenue).reduce((sum, val) => sum + val, 0);
+  }, [metrics.connectorRevenue]);
+
+  const totalRevenue = useMemo(() => {
+    return metrics.expected + totalConnectorRevenue;
+  }, [metrics.expected, totalConnectorRevenue]);
+
   const formatRevenue = (val) => {
     return `Rs. ${Number(val).toLocaleString('en-IN', {
       minimumFractionDigits: 2,
@@ -141,7 +149,9 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
           <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
         </svg>
       ),
-      subtext: "Total potential revenue",
+      subtext: "Total potential store revenue",
+      percentage: totalRevenue > 0 ? (metrics.expected / totalRevenue) * 100 : 0,
+      percentageLabel: "of total revenue",
     },
     {
       title: "Delivered Revenue",
@@ -156,6 +166,8 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
         </svg>
       ),
       subtext: "Successfully delivered",
+      percentage: metrics.expected > 0 ? (metrics.delivered / metrics.expected) * 100 : 0,
+      percentageLabel: "of expected",
     },
     {
       title: "In-Transit Revenue",
@@ -172,6 +184,8 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
         </svg>
       ),
       subtext: "Shipped & pending delivery",
+      percentage: metrics.expected > 0 ? (metrics.inTransit / metrics.expected) * 100 : 0,
+      percentageLabel: "of expected",
     },
     {
       title: "Unfulfilled Revenue",
@@ -187,6 +201,8 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
         </svg>
       ),
       subtext: "Pending shipment (untracked)",
+      percentage: metrics.expected > 0 ? (metrics.unfulfilled / metrics.expected) * 100 : 0,
+      percentageLabel: "of expected",
     },
     {
       title: "Lost Revenue",
@@ -202,6 +218,8 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
         </svg>
       ),
       subtext: "Failed shipments (RTO / Returned)",
+      percentage: metrics.expected > 0 ? (metrics.lost / metrics.expected) * 100 : 0,
+      percentageLabel: "of expected",
     }
   ];
 
@@ -242,42 +260,79 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
                 {card.icon}
               </div>
             </div>
-            <p style={{ ...styles.cardValue, color: card.color }}>
-              {formatRevenue(card.value)}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px', marginBottom: '8px' }}>
+              <p style={{ ...styles.cardValue, color: card.color }}>
+                {formatRevenue(card.value)}
+              </p>
+              {card.percentage !== undefined && (
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  backgroundColor: card.bgLight,
+                  color: card.color,
+                  border: `1px solid ${card.color}33`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  whiteSpace: 'nowrap',
+                }} title={`${card.percentage.toFixed(1)}% ${card.percentageLabel}`}>
+                  {card.percentage.toFixed(1)}%
+                </span>
+              )}
+            </div>
             <p style={styles.cardSubtext}>{card.subtext}</p>
           </div>
         ))}
 
-        {Object.entries(metrics.connectorRevenue).map(([platform, value]) => (
-          <div
-            key={platform}
-            className="revenue-card"
-            style={{
-              ...styles.card,
-              borderTop: `4px solid #8b5cf6` // Purple for connectors
-            }}
-          >
-            <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>{platform} Revenue</h3>
-              <div
-                style={{
-                  ...styles.iconContainer,
-                  backgroundColor: "#f5f3ff",
-                  color: "#8b5cf6"
-                }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-                </svg>
+        {Object.entries(metrics.connectorRevenue).map(([platform, value]) => {
+          const percentage = totalRevenue > 0 ? (value / totalRevenue) * 100 : 0;
+          return (
+            <div
+              key={platform}
+              className="revenue-card"
+              style={{
+                ...styles.card,
+                borderTop: `4px solid #8b5cf6` // Purple for connectors
+              }}
+            >
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>{platform} Revenue</h3>
+                <div
+                  style={{
+                    ...styles.iconContainer,
+                    backgroundColor: "#f5f3ff",
+                    color: "#8b5cf6"
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                  </svg>
+                </div>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px', marginBottom: '8px' }}>
+                <p style={{ ...styles.cardValue, color: "#8b5cf6" }}>
+                  {formatRevenue(value)}
+                </p>
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  backgroundColor: "#f5f3ff",
+                  color: "#8b5cf6",
+                  border: `1px solid #8b5cf633`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  whiteSpace: 'nowrap',
+                }} title={`${percentage.toFixed(1)}% of total revenue`}>
+                  {percentage.toFixed(1)}%
+                </span>
+              </div>
+              <p style={styles.cardSubtext}>Marketplace platform sales</p>
             </div>
-            <p style={{ ...styles.cardValue, color: "#8b5cf6" }}>
-              {formatRevenue(value)}
-            </p>
-            <p style={styles.cardSubtext}>Marketplace platform sales</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
