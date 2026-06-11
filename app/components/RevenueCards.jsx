@@ -56,14 +56,6 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
     };
   }, [orders, productFilter]);
 
-  const totalConnectorRevenue = useMemo(() => {
-    return Object.values(metrics.connectorRevenue).reduce((sum, val) => sum + val, 0);
-  }, [metrics.connectorRevenue]);
-
-  const totalRevenue = useMemo(() => {
-    return metrics.expected + totalConnectorRevenue;
-  }, [metrics.expected, totalConnectorRevenue]);
-
   const formatRevenue = (val) => {
     return `Rs. ${Number(val).toLocaleString('en-IN', {
       minimumFractionDigits: 2,
@@ -150,8 +142,8 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
         </svg>
       ),
       subtext: "Total potential store revenue",
-      percentage: totalRevenue > 0 ? (metrics.expected / totalRevenue) * 100 : 0,
-      percentageLabel: "of total revenue",
+      percentage: metrics.expected > 0 ? 100 : 0,
+      percentageLabel: "of expected",
     },
     {
       title: "Delivered Revenue",
@@ -286,7 +278,6 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
         ))}
 
         {Object.entries(metrics.connectorRevenue).map(([platform, value]) => {
-          const percentage = totalRevenue > 0 ? (value / totalRevenue) * 100 : 0;
           return (
             <div
               key={platform}
@@ -314,20 +305,6 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
                 <p style={{ ...styles.cardValue, color: "#8b5cf6" }}>
                   {formatRevenue(value)}
                 </p>
-                <span style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  backgroundColor: "#f5f3ff",
-                  color: "#8b5cf6",
-                  border: `1px solid #8b5cf633`,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  whiteSpace: 'nowrap',
-                }} title={`${percentage.toFixed(1)}% of total revenue`}>
-                  {percentage.toFixed(1)}%
-                </span>
               </div>
               <p style={styles.cardSubtext}>Marketplace platform sales</p>
             </div>
