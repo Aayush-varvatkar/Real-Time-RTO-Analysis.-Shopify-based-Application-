@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { getIsConnectorNoTracking } from "../utils/orders";
 
 export default function RevenueCards({ orders = [], productFilter = "" }) {
   const metrics = useMemo(() => {
@@ -27,9 +26,9 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
         amount = Number(order.totalPriceSet?.shopMoney?.amount || 0);
       }
 
-      const isConnectorNoTracking = getIsConnectorNoTracking(order);
+      const isConnector = !!order.connectorName;
 
-      if (isConnectorNoTracking) {
+      if (isConnector) {
         const platform = order.connectorName || "Connector";
         connectorRevenue[platform] = (connectorRevenue[platform] || 0) + amount;
       } else {

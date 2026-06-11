@@ -579,8 +579,8 @@ export default function Index() {
     // ── Product Revenue Aggregation ──
     const productRevenueMap = {};
     filteredOrders.forEach(order => {
-      const isConnectorNoTracking = getIsConnectorNoTracking(order);
-      if (isConnectorNoTracking) return;
+      const isConnector = !!order.connectorName;
+      if (isConnector) return;
 
       (order.lineItems?.edges || []).forEach(e => {
         const productTitle = e.node?.title;
