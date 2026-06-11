@@ -118,13 +118,6 @@ export default function ProductRevenue({ data = [] }) {
     return `${Number(val).toFixed(1)}%`;
   };
 
-  const getPctColor = (pct) => {
-    const val = Number(pct || 0);
-    if (val <= 15) return '#059669'; // green
-    if (val <= 25) return '#ea580c'; // orange
-    return '#dc2626'; // red
-  };
-
   const renderSortHeader = (field, displayName, colspan = 1, rowspan = 1, align = 'center') => {
     const isActive = sortField === field;
     const arrow = isActive ? (sortDir === 'desc' ? '⮝' : '⮟') : '⮝';
@@ -229,19 +222,19 @@ export default function ProductRevenue({ data = [] }) {
                       </td>
                       {/* Expected */}
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '600', borderRight: '1px solid #f3f4f6' }}>{formatAmount(row.expected)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(row.expectedPct), fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.expectedPct)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#4f46e5', fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.expectedPct)}</td>
                       {/* Delivered */}
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '600', borderRight: '1px solid #f3f4f6' }}>{formatAmount(row.delivered)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(row.deliveredPct), fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.deliveredPct)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.deliveredPct)}</td>
                       {/* In Transit */}
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '600', borderRight: '1px solid #f3f4f6' }}>{formatAmount(row.inTransit)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(row.inTransitPct), fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.inTransitPct)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#2563eb', fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.inTransitPct)}</td>
                       {/* Unfulfilled */}
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '600', borderRight: '1px solid #f3f4f6' }}>{formatAmount(row.unfulfilled)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(row.unfulfilledPct), fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.unfulfilledPct)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#d97706', fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.unfulfilledPct)}</td>
                       {/* Lost */}
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '600', borderRight: '1px solid #f3f4f6' }}>{formatAmount(row.lost)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(row.lostPct), fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.lostPct)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#dc2626', fontWeight: '600', borderRight: '1px solid #e5e7eb' }}>{formatPct(row.lostPct)}</td>
                     </tr>
                   );
                 })}
@@ -253,19 +246,19 @@ export default function ProductRevenue({ data = [] }) {
                   <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>Total</td>
                   {/* Expected */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '700', borderRight: '1px solid #f3f4f6' }}>{formatAmount(totals.expected)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(totals.expectedPct), fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.expectedPct)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#4f46e5', fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.expectedPct)}</td>
                   {/* Delivered */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '700', borderRight: '1px solid #f3f4f6' }}>{formatAmount(totals.delivered)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(totals.deliveredPct), fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.deliveredPct)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.deliveredPct)}</td>
                   {/* In Transit */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '700', borderRight: '1px solid #f3f4f6' }}>{formatAmount(totals.inTransit)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(totals.inTransitPct), fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.inTransitPct)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#2563eb', fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.inTransitPct)}</td>
                   {/* Unfulfilled */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '700', borderRight: '1px solid #f3f4f6' }}>{formatAmount(totals.unfulfilled)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(totals.unfulfilledPct), fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.unfulfilledPct)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#d97706', fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.unfulfilledPct)}</td>
                   {/* Lost */}
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#111827', fontWeight: '700', borderRight: '1px solid #f3f4f6' }}>{formatAmount(totals.lost)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: getPctColor(totals.lostPct), fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.lostPct)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#dc2626', fontWeight: '700', borderRight: '1px solid #e5e7eb' }}>{formatPct(totals.lostPct)}</td>
                 </tr>
               </tfoot>
             </table>
