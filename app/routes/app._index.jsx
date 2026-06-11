@@ -8,6 +8,7 @@ import IndiaHeatMap from "../components/IndiaHeatMap";
 import Filters from "../components/Filters";
 import ConnectorStatusCard from "../components/ConnectorStatusCard";
 import RevenueCards from "../components/RevenueCards";
+import ProductRevenue from "../components/ProductRevenue";
 
 import {
   AppProvider,
@@ -106,6 +107,11 @@ export const loader = async ({ request }) => {
                   node {
                     title
                     quantity
+                    originalUnitPriceSet {
+                      shopMoney {
+                        amount
+                      }
+                    }
                     product {
                       id
                       productType
@@ -570,12 +576,52 @@ export default function Index() {
       }))
       .sort((a, b) => b.total - a.total);
 
+    // ── Product Revenue Aggregation ──
+    const productRevenueMap = {};
+    filteredOrders.forEach(order => {
+      const isConnectorNoTracking = getIsConnectorNoTracking(order);
+      if (isConnectorNoTracking) return;
+
+      (order.lineItems?.edges || []).forEach(e => {
+        const productTitle = e.node?.title;
+        if (!productTitle || !activeProductSet.has(productTitle)) return;
+        const qty = e.node.quantity || 1;
+        const unitPrice = Number(e.node.originalUnitPriceSet?.shopMoney?.amount || 0);
+        const itemRevenue = qty * unitPrice;
+
+        if (!productRevenueMap[productTitle]) {
+          productRevenueMap[productTitle] = {
+            name: productTitle,
+            expected: 0,
+            delivered: 0,
+            inTransit: 0,
+            unfulfilled: 0,
+            lost: 0
+          };
+        }
+
+        productRevenueMap[productTitle].expected += itemRevenue;
+
+        if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
+          productRevenueMap[productTitle].delivered += itemRevenue;
+        } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
+          productRevenueMap[productTitle].inTransit += itemRevenue;
+        } else if (order.orderDeliveryStatus === 'rto_failed') {
+          productRevenueMap[productTitle].lost += itemRevenue;
+        } else {
+          productRevenueMap[productTitle].unfulfilled += itemRevenue;
+        }
+      });
+    });
+    const productRevenues = Object.values(productRevenueMap).sort((a, b) => b.expected - a.expected);
+
     return {
       states: groupBy(o => o.shippingState || null),
       cities: groupBy(o => o.shippingCity || null),
       pincodes: groupBy(o => o.shippingPincode || null),
       couriers: groupBy(o => o.fulfillments?.[0]?.trackingInfo?.[0]?.company || null),
       products,
+      productRevenues,
     };
   }, [filteredOrders, storeProducts]);
 
@@ -671,7 +717,7 @@ export default function Index() {
               ))}
             </div>
 
-            <RevenueCards orders={filteredOrders} />
+            <RevenueCards orders={filteredOrders} productFilter={productFilter} />
 
             <div style={styles.section}>
               <div style={styles.cardTitleOuter}>
@@ -778,6 +824,12 @@ export default function Index() {
             <div style={{ marginTop: '8px' }}>
               <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px', letterSpacing: '-0.3px' }}>Product RTO</div>
               <ProductRTO data={rtoAnalysis.products} />
+            </div>
+
+            {/* ── Product Revenue Card ── */}
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px', letterSpacing: '-0.3px' }}>Product Revenue</div>
+              <ProductRevenue data={rtoAnalysis.productRevenues} />
             </div>
 
             {/* ── RTO Analysis Cards ── */}
