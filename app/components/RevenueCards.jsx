@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { getIsConnectorNoTracking } from "../utils/orders";
 
-export default function RevenueCards({ orders = [] }) {
+export default function RevenueCards({ orders = [], productFilter = "" }) {
   const metrics = useMemo(() => {
     let expected = 0;
     let delivered = 0;
@@ -11,22 +11,38 @@ export default function RevenueCards({ orders = [] }) {
     const connectorRevenue = {};
 
     orders.forEach(order => {
-      const amount = Number(order.totalPriceSet?.shopMoney?.amount || 0);
-      expected += amount;
+      let amount = 0;
+      if (Array.isArray(order.lineItems?.edges)) {
+        order.lineItems.edges.forEach(edge => {
+          const item = edge.node;
+          if (!item) return;
+          const matchesFilter = !productFilter || productFilter === "All Product Types" || item.title?.trim() === productFilter;
+          if (matchesFilter) {
+            const qty = item.quantity || 1;
+            const unitPrice = Number(item.originalUnitPriceSet?.shopMoney?.amount || 0);
+            amount += qty * unitPrice;
+          }
+        });
+      } else {
+        amount = Number(order.totalPriceSet?.shopMoney?.amount || 0);
+      }
 
       const isConnectorNoTracking = getIsConnectorNoTracking(order);
 
       if (isConnectorNoTracking) {
         const platform = order.connectorName || "Connector";
         connectorRevenue[platform] = (connectorRevenue[platform] || 0) + amount;
-      } else if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
-        delivered += amount;
-      } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
-        inTransit += amount;
-      } else if (order.orderDeliveryStatus === 'rto_failed') {
-        lost += amount;
       } else {
-        unfulfilled += amount;
+        expected += amount;
+        if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
+          delivered += amount;
+        } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
+          inTransit += amount;
+        } else if (order.orderDeliveryStatus === 'rto_failed') {
+          lost += amount;
+        } else {
+          unfulfilled += amount;
+        }
       }
     });
 
@@ -38,7 +54,7 @@ export default function RevenueCards({ orders = [] }) {
       lost,
       connectorRevenue
     };
-  }, [orders]);
+  }, [orders, productFilter]);
 
   const formatRevenue = (val) => {
     return `Rs. ${Number(val).toLocaleString('en-IN', {
