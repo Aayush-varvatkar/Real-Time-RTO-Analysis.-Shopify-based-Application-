@@ -60,17 +60,26 @@ export default function RTOAnalysis({ title, label, data, fullWidth = false, sho
         style={{
           padding: pad,
           textAlign: 'center',
-          color: '#6b7280',
+          color: '#4b5563',
           fontWeight: '600',
           cursor: 'pointer',
           userSelect: 'none',
-          transition: 'color 0.15s ease'
+          transition: 'color 0.15s ease, background-color 0.15s ease',
+          whiteSpace: 'nowrap',
+          border: '1px solid #e5e7eb',
+          backgroundColor: '#f9fafb',
         }}
         onClick={() => handleSort(field)}
-        onMouseEnter={(e) => e.currentTarget.style.color = '#111827'}
-        onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = '#111827';
+          e.currentTarget.style.backgroundColor = '#f3f4f6';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = '#4b5563';
+          e.currentTarget.style.backgroundColor = '#f9fafb';
+        }}
       >
-        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '100%' }}>
           {displayName}
           <span
             style={{
@@ -112,11 +121,11 @@ export default function RTOAnalysis({ title, label, data, fullWidth = false, sho
         <div style={{ display: 'flex', alignItems: 'stretch', flex: 1 }}>
           {/* Table side */}
           <div style={{ flex: 1, overflowX: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', border: '1px solid #e5e7eb' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f9fafb' }}>
-                  <th style={{ padding: pad, textAlign: 'center', color: '#6b7280', fontWeight: '600', width: '32px' }}>#</th>
-                  <th style={{ padding: pad, textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>{label}</th>
+                  <th style={{ padding: pad, textAlign: 'center', color: '#4b5563', fontWeight: '600', width: '32px', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>#</th>
+                  <th style={{ padding: pad, textAlign: 'left', color: '#4b5563', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>{label}</th>
                   {renderSortHeader('total', 'Total')}
                   {renderSortHeader('rtoPct', 'RTO %')}
                   {renderSortHeader('delivered', 'Delivered')}

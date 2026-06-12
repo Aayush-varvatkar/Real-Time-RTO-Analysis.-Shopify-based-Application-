@@ -16,7 +16,7 @@ export default function ProductRevenue({ data = [] }) {
   const processedData = useMemo(() => {
     return data.map(row => {
       const expected = row.expected || 0;
-      const expectedPct = totalExpectedAllProducts > 0 ? (expected / totalExpectedAllProducts) * 100 : 0;
+      const expectedPct = 100;
       const deliveredPct = expected > 0 ? ((row.delivered || 0) / expected) * 100 : 0;
       const inTransitPct = expected > 0 ? ((row.inTransit || 0) / expected) * 100 : 0;
       const unfulfilledPct = expected > 0 ? ((row.unfulfilled || 0) / expected) * 100 : 0;
@@ -31,7 +31,7 @@ export default function ProductRevenue({ data = [] }) {
         lostPct
       };
     });
-  }, [data, totalExpectedAllProducts]);
+  }, [data]);
 
   const sortedData = useMemo(() => {
     return [...processedData].sort((a, b) => {
@@ -108,9 +108,8 @@ export default function ProductRevenue({ data = [] }) {
   };
 
   const formatAmount = (val) => {
-    return `Rs. ${Number(val).toLocaleString('en-IN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+    return `Rs. ${Math.round(Number(val)).toLocaleString('en-IN', {
+      maximumFractionDigits: 0
     })}`;
   };
 

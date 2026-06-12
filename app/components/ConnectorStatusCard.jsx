@@ -91,15 +91,15 @@ export default function ConnectorStatusCard({ orders }) {
 
       {/* Per-platform breakdown table */}
       <div style={{ overflowX: 'auto', marginTop: '12px' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', border: '1px solid #e5e7eb' }}>
           <thead>
-            <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-              <th style={{ padding: '8px 12px', textAlign: 'left', color: '#6b7280', fontWeight: '600' }}>Platform</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>In Transit</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>Delivered</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>Unfulfilled</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>RTO</th>
-              <th style={{ padding: '8px 8px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>Total</th>
+            <tr style={{ backgroundColor: '#f9fafb' }}>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#4b5563', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Platform</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>In Transit</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#10b981', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Delivered</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Unfulfilled</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>RTO</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Total</th>
             </tr>
           </thead>
           <tbody>

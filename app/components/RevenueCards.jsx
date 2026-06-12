@@ -56,9 +56,8 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
   }, [orders, productFilter]);
 
   const formatRevenue = (val) => {
-    return `Rs. ${Number(val).toLocaleString('en-IN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+    return `Rs. ${Math.round(Number(val)).toLocaleString('en-IN', {
+      maximumFractionDigits: 0
     })}`;
   };
 
