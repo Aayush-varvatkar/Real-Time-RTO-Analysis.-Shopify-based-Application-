@@ -95,11 +95,11 @@ export default function ConnectorStatusCard({ orders }) {
           <thead>
             <tr style={{ backgroundColor: '#f9fafb' }}>
               <th style={{ padding: '10px 12px', textAlign: 'left', color: '#4b5563', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Platform</th>
-              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>In Transit</th>
-              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#10b981', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Delivered</th>
-              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Unfulfilled</th>
-              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>RTO</th>
-              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>Total</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#eff6ff' }}>In Transit</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#10b981', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#ecfdf5' }}>Delivered</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#fffbeb' }}>Unfulfilled</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#fef2f2' }}>RTO</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#4f46e5', fontWeight: '600', border: '1px solid #e5e7eb', backgroundColor: '#f5f3ff' }}>Total</th>
             </tr>
           </thead>
           <tbody>

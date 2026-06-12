@@ -51,23 +51,32 @@ export default function RTOAnalysis({ title, label, data, fullWidth = false, sho
     setPage(0);
   };
 
+  const headerColors = {
+    total: { bg: '#f5f3ff', text: '#4f46e5' },
+    delivered: { bg: '#ecfdf5', text: '#10b981' },
+    rto: { bg: '#fef2f2', text: '#ef4444' },
+    inTransit: { bg: '#eff6ff', text: '#3b82f6' },
+    rtoPct: { bg: '#fef2f2', text: '#ef4444' },
+  };
+
   // Helper to render sortable column header with single arrow
   const renderSortHeader = (field, displayName) => {
     const isActive = sortField === field;
     const arrow = isActive ? (sortDir === 'desc' ? '⮝' : '⮟') : '⮝';
+    const colors = headerColors[field] || { bg: '#f9fafb', text: '#4b5563' };
     return (
       <th
         style={{
           padding: pad,
           textAlign: 'center',
-          color: '#4b5563',
+          color: colors.text,
           fontWeight: '600',
           cursor: 'pointer',
           userSelect: 'none',
           transition: 'color 0.15s ease, background-color 0.15s ease',
           whiteSpace: 'nowrap',
           border: '1px solid #e5e7eb',
-          backgroundColor: '#f9fafb',
+          backgroundColor: colors.bg,
         }}
         onClick={() => handleSort(field)}
         onMouseEnter={(e) => {
@@ -75,8 +84,8 @@ export default function RTOAnalysis({ title, label, data, fullWidth = false, sho
           e.currentTarget.style.backgroundColor = '#f3f4f6';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.color = '#4b5563';
-          e.currentTarget.style.backgroundColor = '#f9fafb';
+          e.currentTarget.style.color = colors.text;
+          e.currentTarget.style.backgroundColor = colors.bg;
         }}
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '100%' }}>
