@@ -147,10 +147,10 @@ export default function ProductRTO({ data }) {
                       <td title={row.name} style={{ padding: '10px 12px', color: '#111827', fontWeight: '500', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}>
                         {row.name}
                       </td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '600' }}>{row.total}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{row.inTransit}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.total}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.delivered}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{row.rto}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.inTransit}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                         <span style={{
                           backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',
@@ -168,10 +168,10 @@ export default function ProductRTO({ data }) {
                 <tr style={{ borderTop: '2px solid #9ca3af', borderBottom: '2px solid #9ca3af', backgroundColor: '#f9fafb', fontWeight: '700' }}>
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9ca3af', fontWeight: '700' }}>-</td>
                   <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '700' }}>Total</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{totals.total}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#059669', fontWeight: '700' }}>{totals.delivered}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ef4444', fontWeight: '800' }}>{totals.rto}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#3b82f6', fontWeight: '700' }}>{totals.inTransit}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.total}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.delivered}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '800' }}>{totals.rto}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.inTransit}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <span style={{
                       backgroundColor: totals.rtoPct >= 50 ? '#fee2e2' : totals.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',

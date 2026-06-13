@@ -1,6 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import RevenueBarChart from "./RevenueBarChart";
 
-export default function RevenueCards({ orders = [], productFilter = "" }) {
+export default function RevenueCards({ orders = [], productFilter = "", productRevenues = [] }) {
+  const [activeCardTitle, setActiveCardTitle] = useState(null);
+
   const metrics = useMemo(() => {
     let expected = 0;
     let delivered = 0;
@@ -229,51 +232,80 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
       <h2 style={styles.sectionTitle}>Revenue Generated</h2>
 
       <div style={styles.grid}>
-        {baseCards.map((card, idx) => (
-          <div
-            key={idx}
-            className="revenue-card"
-            style={{
-              ...styles.card,
-              borderTop: `4px solid ${card.borderColor}`
-            }}
-          >
-            <div style={styles.cardHeader}>
-              <h3 style={styles.cardTitle}>{card.title}</h3>
-              <div
-                style={{
-                  ...styles.iconContainer,
-                  backgroundColor: card.bgLight,
-                  color: card.color
-                }}
-              >
-                {card.icon}
+        {baseCards.map((card, idx) => {
+          const isActive = activeCardTitle === card.title;
+          return (
+            <div
+              key={idx}
+              className="revenue-card"
+              onClick={() => {
+                setActiveCardTitle(prev => prev === card.title ? null : card.title);
+              }}
+              style={{
+                ...styles.card,
+                borderTop: `4px solid ${card.borderColor}`,
+                cursor: "pointer",
+                boxShadow: isActive 
+                  ? "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)"
+                  : styles.card.boxShadow
+              }}
+            >
+              <div style={styles.cardHeader}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={styles.cardTitle}>{card.title}</h3>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "20px",
+                      height: "20px",
+                      borderRadius: "50%",
+                      backgroundColor: `${card.color}15`,
+                      color: card.color,
+                      fontSize: "12px",
+                      fontWeight: "bold",
+                      border: `1px solid ${card.color}30`
+                    }}
+                  >
+                    {isActive ? "🢁" : "🢃"}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    ...styles.iconContainer,
+                    backgroundColor: card.bgLight,
+                    color: card.color
+                  }}
+                >
+                  {card.icon}
+                </div>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px', marginBottom: '8px' }}>
+                <p style={{ ...styles.cardValue, color: card.color }}>
+                  {formatRevenue(card.value)}
+                </p>
+                {card.percentage !== undefined && (
+                  <span style={{
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    backgroundColor: card.bgLight,
+                    color: card.color,
+                    border: `1px solid ${card.color}33`,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    whiteSpace: 'nowrap',
+                  }} title={`${card.percentage.toFixed(1)}% ${card.percentageLabel}`}>
+                    {card.percentage.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <p style={styles.cardSubtext}>{card.subtext}</p>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px', marginBottom: '8px' }}>
-              <p style={{ ...styles.cardValue, color: card.color }}>
-                {formatRevenue(card.value)}
-              </p>
-              {card.percentage !== undefined && (
-                <span style={{
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  backgroundColor: card.bgLight,
-                  color: card.color,
-                  border: `1px solid ${card.color}33`,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  whiteSpace: 'nowrap',
-                }} title={`${card.percentage.toFixed(1)}% ${card.percentageLabel}`}>
-                  {card.percentage.toFixed(1)}%
-                </span>
-              )}
-            </div>
-            <p style={styles.cardSubtext}>{card.subtext}</p>
-          </div>
-        ))}
+          );
+        })}
 
         {Object.entries(metrics.connectorRevenue).map(([platform, value]) => {
           return (
@@ -309,6 +341,14 @@ export default function RevenueCards({ orders = [], productFilter = "" }) {
           );
         })}
       </div>
+
+      {activeCardTitle && (
+        <RevenueBarChart
+          activeCard={activeCardTitle}
+          productRevenues={productRevenues}
+          onClose={() => setActiveCardTitle(null)}
+        />
+      )}
     </div>
   );
 }

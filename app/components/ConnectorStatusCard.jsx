@@ -106,11 +106,11 @@ export default function ConnectorStatusCard({ orders }) {
             {platforms.map(([platform, data]) => (
               <tr key={platform} style={{ borderBottom: '1px solid #f3f4f6' }}>
                 <td style={{ padding: '8px 12px', fontWeight: '600', color: '#111827' }}>{platform}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{data['In Transit'] || 0}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#10b981', fontWeight: '600' }}>{data['Delivered'] || 0}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#f59e0b', fontWeight: '600' }}>{data['Unfulfilled'] || 0}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#ef4444', fontWeight: '600' }}>{data['RTO / Failed'] || 0}</td>
-                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#374151', fontWeight: '700' }}>{data.total}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{data['In Transit'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{data['Delivered'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{data['Unfulfilled'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{data['RTO / Failed'] || 0}</td>
+                <td style={{ padding: '8px 8px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{data.total}</td>
               </tr>
             ))}
           </tbody>

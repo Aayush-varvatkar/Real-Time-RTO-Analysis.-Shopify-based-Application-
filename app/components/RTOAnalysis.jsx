@@ -151,15 +151,15 @@ export default function RTOAnalysis({ title, label, data, fullWidth = false, sho
                         {globalIdx + 1}
                       </td>
                       <td title={row.name} style={{ padding: pad, color: '#111827', fontWeight: '500', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}>{row.name}</td>
-                      <td style={{ padding: pad, textAlign: 'center', color: '#374151', fontWeight: '600' }}>{row.total}</td>
+                      <td style={{ padding: pad, textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.total}</td>
                       <td style={{ padding: pad, textAlign: 'center' }}>
                         <span style={{ backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5', color: row.rtoPct >= 50 ? '#991b1b' : row.rtoPct >= 25 ? '#92400e' : '#065f46', padding: '2px 7px', borderRadius: '99px', fontWeight: '700', fontSize: '11px' }}>
                           {row.rtoPct}%
                         </span>
                       </td>
-                      <td style={{ padding: pad, textAlign: 'center', color: '#059669', fontWeight: '600' }}>{row.delivered}</td>
-                      {showInTransit && <td style={{ padding: pad, textAlign: 'center', color: '#3b82f6', fontWeight: '600' }}>{row.inTransit ?? 0}</td>}
-                      <td style={{ padding: pad, textAlign: 'center', color: '#ef4444', fontWeight: '700' }}>{row.rto}</td>
+                      <td style={{ padding: pad, textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.delivered}</td>
+                      {showInTransit && <td style={{ padding: pad, textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.inTransit ?? 0}</td>}
+                      <td style={{ padding: pad, textAlign: 'center', color: '#111827', fontWeight: '700' }}>{row.rto}</td>
                     </tr>
                   );
                 })}
