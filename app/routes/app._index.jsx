@@ -871,7 +871,7 @@ export default function Index() {
               ))}
             </div>
 
-            <RevenueCards orders={filteredOrders} productFilter={productFilter} />
+            <RevenueCards orders={filteredOrders} productFilter={productFilter} productRevenues={rtoAnalysis.productRevenues} />
 
             <div style={styles.section}>
               <div style={styles.cardTitleOuter}>
