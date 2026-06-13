@@ -655,7 +655,7 @@ export default function Index() {
   const orderCardStyles = {
     grid: {
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
       gap: "16px",
       marginTop: "32px",
       marginBottom: "32px",
@@ -663,8 +663,8 @@ export default function Index() {
     card: {
       backgroundColor: "#ffffff",
       padding: "20px 24px",
-      borderRadius: "10px",
-      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02)",
+      borderRadius: "8px",
+      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
       border: "1px solid #e5e7eb",
       display: "flex",
       flexDirection: "column",

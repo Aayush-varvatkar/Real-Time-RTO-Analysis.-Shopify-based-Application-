@@ -251,26 +251,7 @@ export default function RevenueCards({ orders = [], productFilter = "", productR
               }}
             >
               <div style={styles.cardHeader}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h3 style={styles.cardTitle}>{card.title}</h3>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "20px",
-                      height: "20px",
-                      borderRadius: "50%",
-                      backgroundColor: `${card.color}15`,
-                      color: card.color,
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                      border: `1px solid ${card.color}30`
-                    }}
-                  >
-                    {isActive ? "🢁" : "🢃"}
-                  </span>
-                </div>
+                <h3 style={styles.cardTitle}>{card.title}</h3>
                 <div
                   style={{
                     ...styles.iconContainer,
@@ -302,7 +283,27 @@ export default function RevenueCards({ orders = [], productFilter = "", productR
                   </span>
                 )}
               </div>
-              <p style={styles.cardSubtext}>{card.subtext}</p>
+              <p style={{ ...styles.cardSubtext, paddingRight: '28px' }}>{card.subtext}</p>
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: "16px",
+                  right: "16px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "22px",
+                  height: "22px",
+                  borderRadius: "50%",
+                  backgroundColor: `${card.color}15`,
+                  color: card.color,
+                  fontSize: "12px",
+                  fontWeight: "bold",
+                  border: `1px solid ${card.color}30`
+                }}
+              >
+                {isActive ? "🢁" : "🢃"}
+              </span>
             </div>
           );
         })}

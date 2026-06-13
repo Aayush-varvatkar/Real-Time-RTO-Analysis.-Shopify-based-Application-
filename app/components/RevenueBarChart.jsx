@@ -37,10 +37,10 @@ export default function RevenueBarChart({ activeCard, productRevenues = [], onCl
   }, [activeCard]);
 
   const theme = CARD_THEMES[activeKey];
-
   const chartData = useMemo(() => {
-    if (!productRevenues || productRevenues.length === 0) return [];
-
+    if (!productRevenues || productRevenues.length === 0) {
+      return { products: [], totalValue: 0, maxVal: 1 };
+    }
     // Filter products with value > 0 for this status
     const filtered = productRevenues.filter(p => (p[activeKey] || 0) > 0);
 
