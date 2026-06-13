@@ -1,8 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import RevenueBarChart from "./RevenueBarChart";
 
 export default function RevenueCards({ orders = [], productFilter = "", productRevenues = [] }) {
   const [activeCardTitle, setActiveCardTitle] = useState(null);
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    if (activeCardTitle) {
+      const timer = setTimeout(() => {
+        chartRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [activeCardTitle]);
 
   const metrics = useMemo(() => {
     let expected = 0;
@@ -295,11 +305,12 @@ export default function RevenueCards({ orders = [], productFilter = "", productR
                   width: "22px",
                   height: "22px",
                   borderRadius: "50%",
-                  backgroundColor: `${card.color}15`,
-                  color: card.color,
+                  backgroundColor: isActive ? `${card.color}15` : "#f3f4f6",
+                  color: isActive ? card.color : "#9ca3af",
                   fontSize: "12px",
                   fontWeight: "bold",
-                  border: `1px solid ${card.color}30`
+                  border: isActive ? `1px solid ${card.color}30` : "1px solid #e5e7eb",
+                  transition: "background-color 0.2s, color 0.2s, border-color 0.2s"
                 }}
               >
                 {isActive ? "🢁" : "🢃"}
@@ -344,11 +355,13 @@ export default function RevenueCards({ orders = [], productFilter = "", productR
       </div>
 
       {activeCardTitle && (
-        <RevenueBarChart
-          activeCard={activeCardTitle}
-          productRevenues={productRevenues}
-          onClose={() => setActiveCardTitle(null)}
-        />
+        <div ref={chartRef}>
+          <RevenueBarChart
+            activeCard={activeCardTitle}
+            productRevenues={productRevenues}
+            onClose={() => setActiveCardTitle(null)}
+          />
+        </div>
       )}
     </div>
   );
