@@ -187,7 +187,7 @@ export default function RevenueBarChart({ activeCard, productRevenues = [], onCl
                 </span>
                 <span style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px', whiteSpace: 'nowrap' }}>
                   {sharePct}% share
-                  {activeKey !== 'expected' && (
+                  {activeKey === 'delivered' && (
                     <span style={{ color: '#9ca3af' }}> • {successPct}% success rate</span>
                   )}
                 </span>

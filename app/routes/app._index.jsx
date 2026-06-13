@@ -541,15 +541,16 @@ export default function Index() {
         .sort((a, b) => b.rtoPct - a.rtoPct || b.rto - a.rto);
     };
 
-    // ── Product groupBy (filtered to active store products only) ──
-    const activeProductSet = new Set(storeProducts); // storeProducts = active catalog titles from loader
+    // ── Product groupBy ──
     const productMap = {};
     filteredOrders.forEach(order => {
       const isConnectorNoTracking = getIsConnectorNoTracking(order);
       if (isConnectorNoTracking) return;
       (order.lineItems?.edges || []).forEach(e => {
         const productTitle = e.node?.title;
-        if (!productTitle || !activeProductSet.has(productTitle)) return;
+        if (!productTitle) return;
+        const matchesProductFilter = !productFilter || productFilter === "All Product Types" || productTitle?.trim() === productFilter;
+        if (!matchesProductFilter) return;
         const qty = e.node.quantity || 1;
 
         if (!productMap[productTitle]) {
@@ -584,7 +585,9 @@ export default function Index() {
 
       (order.lineItems?.edges || []).forEach(e => {
         const productTitle = e.node?.title;
-        if (!productTitle || !activeProductSet.has(productTitle)) return;
+        if (!productTitle) return;
+        const matchesProductFilter = !productFilter || productFilter === "All Product Types" || productTitle?.trim() === productFilter;
+        if (!matchesProductFilter) return;
         const qty = e.node.quantity || 1;
         const unitPrice = Number(e.node.originalUnitPriceSet?.shopMoney?.amount || 0);
         const itemRevenue = qty * unitPrice;
@@ -623,7 +626,7 @@ export default function Index() {
       products,
       productRevenues,
     };
-  }, [filteredOrders, storeProducts]);
+  }, [filteredOrders, storeProducts, productFilter]);
 
 
 
