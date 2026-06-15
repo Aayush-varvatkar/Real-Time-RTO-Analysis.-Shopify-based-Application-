@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { normalizeDeliveryStatus, enrichConnectorOrderDetails, getIsConnectorNoTracking } from "../utils/orders";
@@ -9,6 +9,7 @@ import Filters from "../components/Filters";
 import ConnectorStatusCard from "../components/ConnectorStatusCard";
 import RevenueCards from "../components/RevenueCards";
 import ProductRevenue from "../components/ProductRevenue";
+import OrderBarChart from "../components/OrderBarChart";
 
 import {
   AppProvider,
@@ -265,11 +266,11 @@ const CustomBarTooltip = ({ active, payload, label }) => {
 
 const renderCustomLegend = (props) => {
   const orderedLegend = [
-    { value: "Total Orders", color: "#15803d" },
-    { value: "Unfulfilled", color: "#ffd351ff" },
-    { value: "Fulfilled", color: "#319e9a" },
-    { value: "Delivered", color: "#31ff7da0" },
-    { value: "In-Transit", color: "#5052526a" },
+    { value: "Total Orders", color: "#4f46e5" },
+    { value: "Unfulfilled", color: "#f59e0b" },
+    { value: "Fulfilled", color: "#059669" },
+    { value: "Delivered", color: "#10b981" },
+    { value: "In-Transit", color: "#3b82f6" },
     { value: "Failed", color: "#ef4444" }
   ];
 
@@ -289,6 +290,18 @@ const renderCustomLegend = (props) => {
 
 export default function Index() {
   const { orders = [], storeProducts = [] } = useLoaderData() || {};
+
+  const [activeOrderCardTitle, setActiveOrderCardTitle] = useState(null);
+  const orderChartRef = useRef(null);
+
+  useEffect(() => {
+    if (activeOrderCardTitle) {
+      const timer = setTimeout(() => {
+        orderChartRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [activeOrderCardTitle]);
 
 
 
@@ -498,9 +511,9 @@ export default function Index() {
     });
 
     return [
-      { name: 'Delivered', value: delivered, color: '#059669' },
+      { name: 'Delivered', value: delivered, color: '#10b981' },
       { name: 'RTO', value: rto, color: '#ef4444' },
-      { name: 'In-Transit', value: inTransit, color: '#00a896' },
+      { name: 'In-Transit', value: inTransit, color: '#3b82f6' },
     ].filter(d => d.value > 0);
   }, [filteredOrders]);
 
@@ -554,7 +567,7 @@ export default function Index() {
         const qty = e.node.quantity || 1;
 
         if (!productMap[productTitle]) {
-          productMap[productTitle] = { delivered: 0, rto: 0, inTransit: 0, total: 0 };
+          productMap[productTitle] = { delivered: 0, rto: 0, inTransit: 0, unfulfilled: 0, total: 0 };
         }
         productMap[productTitle].total += qty;
         if (order.orderDeliveryStatus === 'rto_failed') {
@@ -563,6 +576,8 @@ export default function Index() {
           productMap[productTitle].delivered += qty;
         } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
           productMap[productTitle].inTransit += qty;
+        } else {
+          productMap[productTitle].unfulfilled += qty;
         }
       });
     });
@@ -572,6 +587,7 @@ export default function Index() {
         delivered: d.delivered,
         rto: d.rto,
         inTransit: d.inTransit,
+        unfulfilled: d.unfulfilled,
         total: d.total,
         rtoPct: d.total > 0 ? +((d.rto / d.total) * 100).toFixed(1) : 0,
       }))
@@ -813,34 +829,65 @@ export default function Index() {
             `}</style>
 
             <div style={orderCardStyles.grid}>
-              {baseOrderCards.map((card, idx) => (
-                <div
-                  key={idx}
-                  className="order-card"
-                  style={{
-                    ...orderCardStyles.card,
-                    borderTop: `4px solid ${card.borderColor}`
-                  }}
-                >
-                  <div style={orderCardStyles.cardHeader}>
-                    <h3 style={orderCardStyles.cardTitle}>{card.title}</h3>
-                    <div
+              {baseOrderCards.map((card, idx) => {
+                const isActive = activeOrderCardTitle === card.title;
+                return (
+                  <div
+                    key={idx}
+                    className="order-card"
+                    onClick={() => {
+                      setActiveOrderCardTitle(prev => prev === card.title ? null : card.title);
+                    }}
+                    style={{
+                      ...orderCardStyles.card,
+                      borderTop: `4px solid ${card.borderColor}`,
+                      cursor: "pointer",
+                      boxShadow: isActive 
+                        ? "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)"
+                        : orderCardStyles.card.boxShadow
+                    }}
+                  >
+                    <div style={orderCardStyles.cardHeader}>
+                      <h3 style={orderCardStyles.cardTitle}>{card.title}</h3>
+                      <div
+                        style={{
+                          ...orderCardStyles.iconContainer,
+                          backgroundColor: card.bgLight,
+                          color: card.color
+                        }}
+                      >
+                        {card.icon}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px', marginBottom: '8px' }}>
+                      <p style={{ ...orderCardStyles.cardValue, color: card.color }}>
+                        {card.value}
+                      </p>
+                    </div>
+                    <span
                       style={{
-                        ...orderCardStyles.iconContainer,
-                        backgroundColor: card.bgLight,
-                        color: card.color
+                        position: "absolute",
+                        bottom: "16px",
+                        right: "16px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "22px",
+                        height: "22px",
+                        borderRadius: "50%",
+                        backgroundColor: isActive ? `${card.color}15` : "#f3f4f6",
+                        color: isActive ? card.color : "#9ca3af",
+                        fontSize: "12px",
+                        fontWeight: "bold",
+                        border: isActive ? `1px solid ${card.color}30` : "1px solid #e5e7eb",
+                        transition: "background-color 0.2s, color 0.2s, border-color 0.2s"
                       }}
                     >
-                      {card.icon}
-                    </div>
+                      {isActive ? "🢁" : "🢃"}
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px', marginBottom: '8px' }}>
-                    <p style={{ ...orderCardStyles.cardValue, color: card.color }}>
-                      {card.value}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
               {Object.entries(metrics.connectorCounts).map(([connectorName, count]) => (
                 <div
@@ -873,6 +920,16 @@ export default function Index() {
                 </div>
               ))}
             </div>
+
+            {activeOrderCardTitle && (
+              <div ref={orderChartRef}>
+                <OrderBarChart
+                  activeCard={activeOrderCardTitle}
+                  products={rtoAnalysis.products}
+                  onClose={() => setActiveOrderCardTitle(null)}
+                />
+              </div>
+            )}
 
             <RevenueCards orders={filteredOrders} productFilter={productFilter} productRevenues={rtoAnalysis.productRevenues} />
 
@@ -910,11 +967,11 @@ export default function Index() {
                     <Legend
                       content={renderCustomLegend}
                     />
-                    <Bar dataKey="Total Orders" stackId="total" fill="#15803d" barSize={6} />
-                    <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#ffd351ff" barSize={6} />
-                    <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#319e9a" barSize={6} />
-                    <Bar dataKey="Delivered" stackId="logistics" fill="#31ff7da7" barSize={6} />
-                    <Bar dataKey="In-Transit" stackId="logistics" fill="#5052526a" barSize={6} />
+                    <Bar dataKey="Total Orders" stackId="total" fill="#4f46e5" barSize={6} />
+                    <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#f59e0b" barSize={6} />
+                    <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#059669" barSize={6} />
+                    <Bar dataKey="Delivered" stackId="logistics" fill="#10b981" barSize={6} />
+                    <Bar dataKey="In-Transit" stackId="logistics" fill="#3b82f6" barSize={6} />
                     <Bar dataKey="Failed" stackId="logistics" fill="#ef4444" barSize={6} />
                   </BarChart>
                 </ResponsiveContainer>

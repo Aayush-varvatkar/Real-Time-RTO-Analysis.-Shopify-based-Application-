@@ -131,8 +131,8 @@ export default function ProductRTO({ data }) {
                   {renderSortHeader('name', 'Product', 'left')}
                   {renderSortHeader('total', 'Total Orders')}
                   {renderSortHeader('delivered', 'Delivered')}
-                  {renderSortHeader('rto', 'RTO')}
                   {renderSortHeader('inTransit', 'In Transit')}
+                  {renderSortHeader('rto', 'RTO')}
                   {renderSortHeader('rtoPct', 'RTO %')}
                 </tr>
               </thead>
@@ -149,8 +149,8 @@ export default function ProductRTO({ data }) {
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.total}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.delivered}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{row.rto}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.inTransit}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{row.rto}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                         <span style={{
                           backgroundColor: row.rtoPct >= 50 ? '#fee2e2' : row.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',
@@ -170,8 +170,8 @@ export default function ProductRTO({ data }) {
                   <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '700' }}>Total</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.total}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.delivered}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '800' }}>{totals.rto}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.inTransit}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '800' }}>{totals.rto}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <span style={{
                       backgroundColor: totals.rtoPct >= 50 ? '#fee2e2' : totals.rtoPct >= 25 ? '#fef3c7' : '#d1fae5',
