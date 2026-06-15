@@ -9,10 +9,6 @@ export default function ProductRevenue({ data = [] }) {
   const [sortField, setSortField] = useState('expected'); // default sort by expected amount
   const [sortDir, setSortDir] = useState('desc');
 
-  const totalExpectedAllProducts = useMemo(() => {
-    return data.reduce((sum, row) => sum + (row.expected || 0), 0);
-  }, [data]);
-
   const processedData = useMemo(() => {
     return data.map(row => {
       const expected = row.expected || 0;

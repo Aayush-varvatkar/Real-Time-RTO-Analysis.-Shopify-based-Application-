@@ -31,8 +31,12 @@ export default function RevenueCards({ orders = [], productFilter = "", productR
           const matchesFilter = !productFilter || productFilter === "All Product Types" || item.title?.trim() === productFilter;
           if (matchesFilter) {
             const qty = item.quantity || 1;
-            const unitPrice = Number(item.originalUnitPriceSet?.shopMoney?.amount || 0);
-            amount += qty * unitPrice;
+            const originalUnitPrice = Number(item.originalUnitPriceSet?.shopMoney?.amount || 0);
+            const originalTotal = qty * originalUnitPrice;
+            const totalDiscount = (item.discountAllocations || []).reduce((sum, da) => {
+              return sum + Number(da.allocatedAmountSet?.shopMoney?.amount || 0);
+            }, 0);
+            amount += originalTotal - totalDiscount;
           }
         });
       } else {

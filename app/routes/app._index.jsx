@@ -113,6 +113,13 @@ export const loader = async ({ request }) => {
                         amount
                       }
                     }
+                    discountAllocations {
+                      allocatedAmountSet {
+                        shopMoney {
+                          amount
+                        }
+                      }
+                    }
                     product {
                       id
                       productType
@@ -264,7 +271,7 @@ const CustomBarTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const renderCustomLegend = (props) => {
+const renderCustomLegend = () => {
   const orderedLegend = [
     { value: "Total Orders", color: "#4f46e5" },
     { value: "Unfulfilled", color: "#f59e0b" },
@@ -605,8 +612,12 @@ export default function Index() {
         const matchesProductFilter = !productFilter || productFilter === "All Product Types" || productTitle?.trim() === productFilter;
         if (!matchesProductFilter) return;
         const qty = e.node.quantity || 1;
-        const unitPrice = Number(e.node.originalUnitPriceSet?.shopMoney?.amount || 0);
-        const itemRevenue = qty * unitPrice;
+        const originalUnitPrice = Number(e.node.originalUnitPriceSet?.shopMoney?.amount || 0);
+        const originalTotal = qty * originalUnitPrice;
+        const totalDiscount = (e.node.discountAllocations || []).reduce((sum, da) => {
+          return sum + Number(da.allocatedAmountSet?.shopMoney?.amount || 0);
+        }, 0);
+        const itemRevenue = originalTotal - totalDiscount;
 
         if (!productRevenueMap[productTitle]) {
           productRevenueMap[productTitle] = {
@@ -642,7 +653,7 @@ export default function Index() {
       products,
       productRevenues,
     };
-  }, [filteredOrders, storeProducts, productFilter]);
+  }, [filteredOrders, productFilter]);
 
 
 
