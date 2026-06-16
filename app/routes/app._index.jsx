@@ -640,7 +640,9 @@ export default function Index() {
           <line x1="3" y1="6" x2="21" y2="6"></line>
           <path d="M16 10a4 4 0 0 1-8 0"></path>
         </svg>
-      )
+      ),
+      percentage: metrics.totalOrders > 0 ? 100 : 0,
+      percentageLabel: "of total"
     },
     {
       title: "Delivered",
@@ -653,7 +655,9 @@ export default function Index() {
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
           <polyline points="22 4 12 14.01 9 11.01"></polyline>
         </svg>
-      )
+      ),
+      percentage: metrics.totalOrders > 0 ? (metrics.fulfilled / metrics.totalOrders) * 100 : 0,
+      percentageLabel: "of total"
     },
     {
       title: "In-Transit",
@@ -668,7 +672,9 @@ export default function Index() {
           <circle cx="5.5" cy="18.5" r="2.5"></circle>
           <circle cx="18.5" cy="18.5" r="2.5"></circle>
         </svg>
-      )
+      ),
+      percentage: metrics.totalOrders > 0 ? (metrics.shipped / metrics.totalOrders) * 100 : 0,
+      percentageLabel: "of total"
     },
     {
       title: "Unfulfilled",
@@ -682,7 +688,9 @@ export default function Index() {
           <line x1="12" y1="8" x2="12" y2="12"></line>
           <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
-      )
+      ),
+      percentage: metrics.totalOrders > 0 ? (metrics.unfulfilled / metrics.totalOrders) * 100 : 0,
+      percentageLabel: "of total"
     },
     {
       title: "Failed",
@@ -696,7 +704,9 @@ export default function Index() {
           <line x1="15" y1="9" x2="9" y2="15"></line>
           <line x1="9" y1="9" x2="15" y2="15"></line>
         </svg>
-      )
+      ),
+      percentage: metrics.totalOrders > 0 ? (metrics.failed / metrics.totalOrders) * 100 : 0,
+      percentageLabel: "of total"
     }
   ];
 
@@ -770,6 +780,22 @@ export default function Index() {
                       <p style={{ ...orderCardStyles.cardValue, color: card.color }}>
                         {card.value}
                       </p>
+                      {card.percentage !== undefined && (
+                        <span style={{
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          backgroundColor: card.bgLight,
+                          color: card.color,
+                          border: `1px solid ${card.color}33`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          whiteSpace: 'nowrap',
+                        }} title={`${card.percentage.toFixed(1)}% ${card.percentageLabel}`}>
+                          {card.percentage.toFixed(1)}%
+                        </span>
+                      )}
                     </div>
                     <span
                       style={{
