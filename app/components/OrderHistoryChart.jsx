@@ -11,11 +11,11 @@ const CustomBarTooltip = ({ active, payload, label }) => {
     });
 
     const orderedKeys = [
-      { key: "Total Orders", label: "Total Orders", defaultColor: "#008f34ff" },
-      { key: "Unfulfilled", label: "Unfulfilled", defaultColor: "#ffd351ff" },
-      { key: "Fulfilled", label: "Fulfilled", defaultColor: "#319e9a" },
-      { key: "Delivered", label: "Delivered", defaultColor: "#31ff7dc3" },
-      { key: "In-Transit", label: "In-Transit", defaultColor: "#5052526a" },
+      { key: "Total Orders", label: "Total Orders", defaultColor: "#4f46e5" },
+      { key: "Unfulfilled", label: "Unfulfilled", defaultColor: "#f59e0b" },
+      { key: "Fulfilled", label: "Fulfilled", defaultColor: "#059669" },
+      { key: "Delivered", label: "Delivered", defaultColor: "#10b981" },
+      { key: "In-Transit", label: "In-Transit", defaultColor: "#3b82f6" },
       { key: "Failed", label: "Failed", defaultColor: "#ef4444" }
     ];
 
