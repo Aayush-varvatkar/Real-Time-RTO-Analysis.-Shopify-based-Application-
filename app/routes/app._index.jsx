@@ -10,6 +10,8 @@ import ConnectorStatusCard from "../components/ConnectorStatusCard";
 import RevenueCards from "../components/RevenueCards";
 import ProductRevenue from "../components/ProductRevenue";
 import OrderBarChart from "../components/OrderBarChart";
+import OrderHistoryChart from "../components/OrderHistoryChart";
+import TrackingStatusHistory from "../components/TrackingStatusHistory";
 
 import {
   AppProvider,
@@ -18,19 +20,6 @@ import {
 } from '@shopify/polaris';
 import '@shopify/polaris/build/esm/styles.css';
 import enTranslations from '@shopify/polaris/locales/en.json';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
 
 // normalizeDeliveryStatus and getThirdPartyConnectorName are imported from app/utils/orders.js
 
@@ -198,100 +187,7 @@ export const loader = async ({ request }) => {
 
 
 
-const CustomTooltip = ({ active, payload, total }) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const percent = total > 0 ? ((data.value / total) * 100).toFixed(1) : 0;
 
-    return (
-      <div style={{ backgroundColor: '#fff', border: `1px solid ${data.color || '#e5e7eb'}`, padding: '8px 12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', borderRadius: '4px' }}>
-        <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: '#111827' }}>{data.name}</p>
-        <p style={{ margin: 0, fontSize: '12px', color: '#4b5563', marginTop: '4px' }}>Tracking Status: {percent}%</p>
-      </div>
-    );
-  }
-  return null;
-};
-
-const CustomBarTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    const dataMap = {};
-    payload.forEach(item => {
-      dataMap[item.dataKey] = {
-        value: item.value,
-        color: item.color || item.fill
-      };
-    });
-
-    const orderedKeys = [
-      { key: "Total Orders", label: "Total Orders", defaultColor: "#008f34ff" },
-      { key: "Unfulfilled", label: "Unfulfilled", defaultColor: "#ffd351ff" },
-      { key: "Fulfilled", label: "Fulfilled", defaultColor: "#319e9a" },
-      { key: "Delivered", label: "Delivered", defaultColor: "#31ff7dc3" },
-      { key: "In-Transit", label: "In-Transit", defaultColor: "#5052526a" },
-      { key: "Failed", label: "Failed", defaultColor: "#ef4444" }
-    ];
-
-    return (
-      <div style={{
-        backgroundColor: '#fff',
-        border: '1px solid #e5e7eb',
-        padding: '12px 14px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-        borderRadius: '8px',
-        fontSize: '13px',
-        fontFamily: 'inherit',
-        color: '#1f2937',
-        minWidth: '180px'
-      }}>
-        <p style={{ margin: '0 0 8px 0', fontWeight: '700', color: '#111827', fontSize: '14px', borderBottom: '1px solid #f3f4f6', paddingBottom: '4px' }}>
-          {label}
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {orderedKeys.map(item => {
-            const data = dataMap[item.key];
-            const value = data ? data.value : 0;
-            const color = data ? data.color : item.defaultColor;
-            return (
-              <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '500', color: '#4b5563' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
-                  {item.label}
-                </span>
-                <span style={{ fontWeight: '700', color: '#111827' }}>
-                  {value}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-const renderCustomLegend = () => {
-  const orderedLegend = [
-    { value: "Total Orders", color: "#4f46e5" },
-    { value: "Unfulfilled", color: "#f59e0b" },
-    { value: "Fulfilled", color: "#059669" },
-    { value: "Delivered", color: "#10b981" },
-    { value: "In-Transit", color: "#3b82f6" },
-    { value: "Failed", color: "#ef4444" }
-  ];
-
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '20px', paddingTop: '24px', paddingBottom: '10px' }}>
-      {orderedLegend.map((item, index) => (
-        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#4b5563', fontWeight: '500' }}>
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block' }} />
-          <span>{item.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 
 
@@ -944,88 +840,14 @@ export default function Index() {
 
             <RevenueCards orders={filteredOrders} productFilter={productFilter} productRevenues={rtoAnalysis.productRevenues} />
 
-            <div style={styles.section}>
-              <div style={styles.cardTitleOuter}>
-                <h3 style={styles.cardTitle}>Order History</h3>
-              </div>
-              <div style={{ width: '100%', height: 400, marginTop: '20px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={chartData}
-                    margin={{ top: 20, right: 30, left: 0, bottom: 40 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#f0f0f0" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 10, fill: '#666' }}
-                      tickMargin={10}
-                      angle={-45}
-                      textAnchor="end"
-                      axisLine={{ stroke: '#e5e7eb' }}
-                      tickLine={false}
-                      height={70}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: '#666' }}
-                      axisLine={false}
-                      tickLine={false}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                      content={<CustomBarTooltip />}
-                    />
-                    <Legend
-                      content={renderCustomLegend}
-                    />
-                    <Bar dataKey="Total Orders" stackId="total" fill="#4f46e5" barSize={6} />
-                    <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#f59e0b" barSize={6} />
-                    <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#059669" barSize={6} />
-                    <Bar dataKey="Delivered" stackId="logistics" fill="#10b981" barSize={6} />
-                    <Bar dataKey="In-Transit" stackId="logistics" fill="#3b82f6" barSize={6} />
-                    <Bar dataKey="Failed" stackId="logistics" fill="#ef4444" barSize={6} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+            <OrderHistoryChart chartData={chartData} />
 
             <div style={styles.section}>
               <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
 
                 {/* ── Left: Shopify Tracking-Status History ── */}
                 <div style={{ flex: '1 1 380px', minWidth: '320px' }}>
-                  <div style={styles.cardTitleOuter}>
-                    <h3 style={styles.cardTitle}>Tracking-Status History</h3>
-                  </div>
-                  <div style={{ width: '100%', height: 380, marginTop: '12px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={trackingStatusData}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={120}
-                          isAnimationActive={false}
-                          labelLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
-                          label={({ name, value, x, y, textAnchor }) => (
-                            <text x={x} y={y} fill="#111827" fontSize="13" fontWeight="600" textAnchor={textAnchor} dominantBaseline="central">
-                              {name} : {value}
-                            </text>
-                          )}
-                        >
-                          {trackingStatusData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          content={<CustomTooltip total={pieTotal} />}
-                          wrapperStyle={{ outline: 'none' }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <TrackingStatusHistory trackingStatusData={trackingStatusData} pieTotal={pieTotal} />
                 </div>
 
                 {/* ── Divider ── */}
