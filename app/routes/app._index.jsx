@@ -13,6 +13,7 @@ import OrderBarChart from "../components/OrderBarChart";
 import OrderHistoryChart from "../components/OrderHistoryChart";
 import TrackingStatusHistory from "../components/TrackingStatusHistory";
 import OrderCards from "../components/OrderCards";
+import { exportDashboardToPPT } from "../utils/exportPPT";
 
 import {
   AppProvider,
@@ -197,6 +198,18 @@ export default function Index() {
 
   const [activeOrderCardTitle, setActiveOrderCardTitle] = useState(null);
   const orderChartRef = useRef(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      await exportDashboardToPPT();
+    } catch (err) {
+      console.error("[Index] Failed to export PPT:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (activeOrderCardTitle) {
@@ -584,7 +597,15 @@ export default function Index() {
   return (
     <AppProvider i18n={enTranslations}>
       <div style={{ padding: "2rem" }}>
-        <Page title="Dashboard" fullWidth>
+        <Page
+          title="Dashboard"
+          fullWidth
+          primaryAction={{
+            content: "Export to PPT",
+            onAction: handleExport,
+            loading: isExporting,
+          }}
+        >
           <BlockStack gap="400">
             <Filters
               orders={orders}
@@ -605,23 +626,30 @@ export default function Index() {
               setCourierFilter={setCourierFilter}
             />
 
-            <OrderCards metrics={metrics} activeOrderCardTitle={activeOrderCardTitle} setActiveOrderCardTitle={setActiveOrderCardTitle} />
+            {/* ── Key Metrics & Revenue Overview ── */}
+            <div id="dashboard-overview" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <OrderCards metrics={metrics} activeOrderCardTitle={activeOrderCardTitle} setActiveOrderCardTitle={setActiveOrderCardTitle} />
 
-            {activeOrderCardTitle && (
-              <div ref={orderChartRef}>
-                <OrderBarChart
-                  activeCard={activeOrderCardTitle}
-                  products={rtoAnalysis.products}
-                  onClose={() => setActiveOrderCardTitle(null)}
-                />
-              </div>
-            )}
+              {activeOrderCardTitle && (
+                <div ref={orderChartRef}>
+                  <OrderBarChart
+                    activeCard={activeOrderCardTitle}
+                    products={rtoAnalysis.products}
+                    onClose={() => setActiveOrderCardTitle(null)}
+                  />
+                </div>
+              )}
 
-            <RevenueCards orders={filteredOrders} productFilter={productFilter} productRevenues={rtoAnalysis.productRevenues} />
+              <RevenueCards orders={filteredOrders} productFilter={productFilter} productRevenues={rtoAnalysis.productRevenues} />
+            </div>
 
-            <OrderHistoryChart chartData={chartData} />
+            {/* ── Order History Chart ── */}
+            <div id="dashboard-history">
+              <OrderHistoryChart chartData={chartData} />
+            </div>
 
-            <div style={styles.section}>
+            {/* ── Tracking status & Connector Orders ── */}
+            <div id="dashboard-tracking" style={styles.section}>
               <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
 
                 {/* ── Left: Shopify Tracking-Status History ── */}
@@ -647,21 +675,20 @@ export default function Index() {
             </div>
 
             {/* ── Product RTO Card ── */}
-            <div style={{ marginTop: '8px' }}>
+            <div id="dashboard-product-rto" style={{ marginTop: '8px' }}>
               <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px', letterSpacing: '-0.3px' }}>Product RTO</div>
               <ProductRTO data={rtoAnalysis.products} />
             </div>
 
             {/* ── Product Revenue Card ── */}
-            <div style={{ marginTop: '8px' }}>
+            <div id="dashboard-product-revenue" style={{ marginTop: '8px' }}>
               <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px', letterSpacing: '-0.3px' }}>Product Revenue</div>
               <ProductRevenue data={rtoAnalysis.productRevenues} />
             </div>
 
             {/* ── RTO Analysis Cards ── */}
-            <div style={{ marginTop: '8px' }}>
+            <div id="dashboard-rto-breakdown" style={{ marginTop: '8px' }}>
               <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '20px', letterSpacing: '-0.3px' }}>RTO Analysis</div>
-
 
               {/* 2-column grid — align-items:start keeps cards independent heights */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', alignItems: 'start' }}>
@@ -673,7 +700,9 @@ export default function Index() {
             </div>
 
             {/* ── India Heat Map ── */}
-            <IndiaHeatMap statesData={rtoAnalysis.states} />
+            <div id="dashboard-india-map">
+              <IndiaHeatMap statesData={rtoAnalysis.states} />
+            </div>
 
           </BlockStack>
         </Page>
