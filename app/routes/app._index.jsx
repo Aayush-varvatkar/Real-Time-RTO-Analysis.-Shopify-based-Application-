@@ -665,10 +665,10 @@ export default function Index() {
 
               {/* 2-column grid — align-items:start keeps cards independent heights */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', alignItems: 'start' }}>
+                <RTOAnalysis title="🚚 Top RTO Couriers" label="Courier" data={rtoAnalysis.couriers} showInTransit />
                 <RTOAnalysis title="🏙️ Top RTO States" label="State" data={rtoAnalysis.states} />
                 <RTOAnalysis title="🌆 Top RTO Cities" label="City" data={rtoAnalysis.cities} />
                 <RTOAnalysis title="📮 Top RTO Pincodes" label="Pincode" data={rtoAnalysis.pincodes} />
-                <RTOAnalysis title="🚚 Top RTO Couriers" label="Courier" data={rtoAnalysis.couriers} showInTransit />
               </div>
             </div>
 
