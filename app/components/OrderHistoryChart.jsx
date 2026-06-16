@@ -116,10 +116,10 @@ export default function OrderHistoryChart({ chartData }) {
             <Legend
               content={renderCustomLegend}
             />
-            <Bar dataKey="Total Orders" stackId="total" fill="#686b93ff" barSize={6} />
+            <Bar dataKey="Total Orders" stackId="total" fill="#3d3f5dff" barSize={6} />
             <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#fbbf24" barSize={6} />
-            <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#23a79aff" barSize={6} />
-            <Bar dataKey="Delivered" stackId="logistics" fill="#117335ff" barSize={6} />
+            <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#007e72ff" barSize={6} />
+            <Bar dataKey="Delivered" stackId="logistics" fill="#005d22ff" barSize={6} />
             <Bar dataKey="In-Transit" stackId="logistics" fill="#4e97f0ff" barSize={6} />
             <Bar dataKey="Failed" stackId="logistics" fill="#f87171" barSize={6} />
           </BarChart>
