@@ -11,12 +11,12 @@ const CustomBarTooltip = ({ active, payload, label }) => {
     });
 
     const orderedKeys = [
-      { key: "Total Orders", label: "Total Orders", defaultColor: "#4f46e5" },
-      { key: "Unfulfilled", label: "Unfulfilled", defaultColor: "#f59e0b" },
-      { key: "Fulfilled", label: "Fulfilled", defaultColor: "#059669" },
-      { key: "Delivered", label: "Delivered", defaultColor: "#10b981" },
-      { key: "In-Transit", label: "In-Transit", defaultColor: "#3b82f6" },
-      { key: "Failed", label: "Failed", defaultColor: "#ef4444" }
+      { key: "Total Orders", label: "Total Orders", defaultColor: "#818cf8" },
+      { key: "Unfulfilled", label: "Unfulfilled", defaultColor: "#fbbf24" },
+      { key: "Fulfilled", label: "Fulfilled", defaultColor: "#26a69a" },
+      { key: "Delivered", label: "Delivered", defaultColor: "#34d399" },
+      { key: "In-Transit", label: "In-Transit", defaultColor: "#60a5fa" },
+      { key: "Failed", label: "Failed", defaultColor: "#f87171" }
     ];
 
     return (
@@ -60,12 +60,12 @@ const CustomBarTooltip = ({ active, payload, label }) => {
 
 const renderCustomLegend = () => {
   const orderedLegend = [
-    { value: "Total Orders", color: "#4f46e5" },
-    { value: "Unfulfilled", color: "#f59e0b" },
-    { value: "Fulfilled", color: "#059669" },
-    { value: "Delivered", color: "#10b981" },
-    { value: "In-Transit", color: "#3b82f6" },
-    { value: "Failed", color: "#ef4444" }
+    { value: "Total Orders", color: "#818cf8" },
+    { value: "Unfulfilled", color: "#fbbf24" },
+    { value: "Fulfilled", color: "#26a69a" },
+    { value: "Delivered", color: "#34d399" },
+    { value: "In-Transit", color: "#60a5fa" },
+    { value: "Failed", color: "#f87171" }
   ];
 
   return (
@@ -116,12 +116,12 @@ export default function OrderHistoryChart({ chartData }) {
             <Legend
               content={renderCustomLegend}
             />
-            <Bar dataKey="Total Orders" stackId="total" fill="#a09bffff" barSize={6} />
-            <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#f59e0b" barSize={6} />
-            <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#319e9a" barSize={6} />
-            <Bar dataKey="Delivered" stackId="logistics" fill="#00e699a6" barSize={6} />
-            <Bar dataKey="In-Transit" stackId="logistics" fill="#3b83f6bc" barSize={6} />
-            <Bar dataKey="Failed" stackId="logistics" fill="#ef4444" barSize={6} />
+            <Bar dataKey="Total Orders" stackId="total" fill="#818cf8" barSize={6} />
+            <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#fbbf24" barSize={6} />
+            <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#26a69a" barSize={6} />
+            <Bar dataKey="Delivered" stackId="logistics" fill="#34d399" barSize={6} />
+            <Bar dataKey="In-Transit" stackId="logistics" fill="#60a5fa" barSize={6} />
+            <Bar dataKey="Failed" stackId="logistics" fill="#f87171" barSize={6} />
           </BarChart>
         </ResponsiveContainer>
       </div>
