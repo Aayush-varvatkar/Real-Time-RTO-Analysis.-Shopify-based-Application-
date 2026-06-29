@@ -4,11 +4,7 @@ node_modules
 .DS_Store
 
 /.cache
-<<<<<<< HEAD
 # /build
-=======
-/build
->>>>>>> 0b30a0e528ca665d2443133c9cad7b48a45ce303
 /app/build
 /public/build/
 /public/_dev
