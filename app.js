@@ -4,6 +4,7 @@ import express from 'express';
 import compression from 'compression';
 import morgan from 'morgan';
 import { createRequestHandler } from '@react-router/express';
+import * as build from './build/server/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,7 +27,7 @@ app.use(morgan("tiny"));
 app.all(
   "*",
   createRequestHandler({
-    build: () => import("./build/server/index.js"),
+    build,
   })
 );
 
