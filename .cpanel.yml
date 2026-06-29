@@ -1,0 +1,4 @@
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/goeasify/rto-predictor-app/
+    - /bin/rsync -a --exclude="node_modules" --exclude=".git" * $DEPLOYPATH
