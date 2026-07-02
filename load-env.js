@@ -16,7 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const envPath = resolve(__dirname, '.env');
 
 log('envPath: ' + envPath);
-log('DATABASE_URL before load: ' + (process.env.DATABASE_URL ? 'SET' : 'NOT SET'));
+log('DATABASE_URL before load: ' + (process.env.DATABASE_URL || 'NOT SET'));
 
 // --- Manual .env parser (works in all Node.js environments) ---
 const loadEnvFile = (filePath) => {
@@ -28,8 +28,8 @@ const loadEnvFile = (filePath) => {
     if (eqIdx === -1) continue;
     const key = trimmed.slice(0, eqIdx).trim();
     const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
-    if (key && !process.env[key]) {
-      process.env[key] = val;
+    if (key) {
+      process.env[key] = val; // Force overwrite
     }
   }
 };
@@ -46,10 +46,10 @@ if (existsSync(envPath)) {
 }
 
 // --- Hard fallback: ensure DATABASE_URL is always set ---
-if (!process.env.DATABASE_URL) {
+if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('sqlite')) {
   process.env.DATABASE_URL = 'postgresql://goeasify_om:Ambre1429@127.0.0.1:5432/goeasify_rto_db';
   log('Applied DATABASE_URL hard fallback');
 }
 
-log('DATABASE_URL after load: ' + (process.env.DATABASE_URL ? 'SET' : 'NOT SET'));
+log('DATABASE_URL after load: ' + process.env.DATABASE_URL);
 
