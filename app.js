@@ -1,3 +1,4 @@
+import './load-env.js'; // MUST be first — loads .env before Prisma initializes
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
