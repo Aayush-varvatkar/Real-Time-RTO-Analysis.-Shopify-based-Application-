@@ -29,11 +29,14 @@ export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
 
   // ── 1. Fetch all store products (paginated) ──────────────────────────────
+  const MAX_PAGES = 40; // Hard cap: 40 × 250 = 10,000 records max (prevents DoS / timeout)
   let allStoreProducts = [];
   let productHasNextPage = true;
   let productCursor = null;
+  let productPageCount = 0;
 
-  while (productHasNextPage) {
+  while (productHasNextPage && productPageCount < MAX_PAGES) {
+    productPageCount++;
     const productResponse = await admin.graphql(
       `#graphql
       query getProducts($cursor: String) {
@@ -66,8 +69,10 @@ export const loader = async ({ request }) => {
   let allRawOrders = [];
   let hasNextPage = true;
   let cursor = null;
+  let pageCount = 0;
 
-  while (hasNextPage) {
+  while (hasNextPage && pageCount < MAX_PAGES) {
+    pageCount++;
     const response = await admin.graphql(
       `#graphql
       query getOrdersWithTrackingForAnalytics($cursor: String) {
@@ -143,7 +148,8 @@ export const loader = async ({ request }) => {
 
     // Guard: if Shopify returns errors (e.g. missing scope), stop and return what we have
     if (!json.data || !json.data.orders) {
-      console.error('[RTO-Predictor] Orders query error:', JSON.stringify(json.errors || json));
+      const errMsg = (json.errors || []).map(e => e.message).join('; ') || 'Unknown error';
+      console.error('[RTO-Predictor] Orders query error:', errMsg);
       break;
     }
 

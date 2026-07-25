@@ -59,7 +59,7 @@ export async function exportDashboardToPPT() {
       const canvas = await html2canvas(el, {
         scale: 2, // Enhances chart & text crispness on screens and when zoomed
         useCORS: true,
-        allowTaint: true,
+        // Note: allowTaint removed — rely on useCORS so cross-origin protections stay active
         backgroundColor: "#ffffff",
         logging: false
       });

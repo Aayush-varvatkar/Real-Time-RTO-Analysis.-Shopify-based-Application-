@@ -3,7 +3,7 @@
 // Ping URL: https://rto-predictor.onrender.com/health
 
 export const loader = () => {
-  return new Response(JSON.stringify({ status: "ok", ts: Date.now() }), {
+  return new Response(JSON.stringify({ status: "ok" }), {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
