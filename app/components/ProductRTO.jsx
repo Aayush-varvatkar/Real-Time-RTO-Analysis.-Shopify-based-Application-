@@ -20,18 +20,21 @@ export default function ProductRTO({ data }) {
 
   const totals = useMemo(() => {
     let totalOrders = 0;
+    let totalSent = 0;
     let totalDelivered = 0;
     let totalRto = 0;
     let totalInTransit = 0;
     data.forEach(row => {
       totalOrders += row.total ?? 0;
+      totalSent += row.totalSent ?? 0;
       totalDelivered += row.delivered ?? 0;
       totalRto += row.rto ?? 0;
       totalInTransit += row.inTransit ?? 0;
     });
-    const rtoPct = totalOrders > 0 ? +((totalRto / totalOrders) * 100).toFixed(1) : 0;
+    const rtoPct = totalSent > 0 ? +((totalRto / totalSent) * 100).toFixed(1) : 0;
     return {
       total: totalOrders,
+      totalSent,
       delivered: totalDelivered,
       rto: totalRto,
       inTransit: totalInTransit,
@@ -60,6 +63,7 @@ export default function ProductRTO({ data }) {
 
   const headerColors = {
     total: { bg: '#f5f3ff', text: '#4f46e5' },
+    totalSent: { bg: '#f0fdfa', text: '#0d9488' },
     delivered: { bg: '#ecfdf5', text: '#10b981' },
     rto: { bg: '#fef2f2', text: '#ef4444' },
     inTransit: { bg: '#eff6ff', text: '#3b82f6' },
@@ -130,6 +134,7 @@ export default function ProductRTO({ data }) {
                   <th style={{ padding: '10px 12px', textAlign: 'center', color: '#4b5563', fontWeight: '600', width: '36px', border: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>#</th>
                   {renderSortHeader('name', 'Product', 'left')}
                   {renderSortHeader('total', 'Total Orders')}
+                  {renderSortHeader('totalSent', 'Total Sent')}
                   {renderSortHeader('delivered', 'Delivered')}
                   {renderSortHeader('inTransit', 'In Transit')}
                   {renderSortHeader('rto', 'RTO')}
@@ -148,6 +153,7 @@ export default function ProductRTO({ data }) {
                         {row.name}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.total}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#0d9488', fontWeight: '600' }}>{row.totalSent}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.delivered}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '600' }}>{row.inTransit}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{row.rto}</td>
@@ -169,6 +175,7 @@ export default function ProductRTO({ data }) {
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9ca3af', fontWeight: '700' }}>-</td>
                   <td style={{ padding: '10px 12px', color: '#111827', fontWeight: '700' }}>Total</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.total}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#0d9488', fontWeight: '700' }}>{totals.totalSent}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.delivered}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '700' }}>{totals.inTransit}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', color: '#111827', fontWeight: '800' }}>{totals.rto}</td>

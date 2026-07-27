@@ -505,15 +505,19 @@ export default function Index() {
       });
     });
     const products = Object.entries(productMap)
-      .map(([name, d]) => ({
-        name,
-        delivered: d.delivered,
-        rto: d.rto,
-        inTransit: d.inTransit,
-        unfulfilled: d.unfulfilled,
-        total: d.total,
-        rtoPct: d.total > 0 ? +((d.rto / d.total) * 100).toFixed(1) : 0,
-      }))
+      .map(([name, d]) => {
+        const totalSent = d.delivered + d.rto + d.inTransit;
+        return {
+          name,
+          delivered: d.delivered,
+          rto: d.rto,
+          inTransit: d.inTransit,
+          unfulfilled: d.unfulfilled,
+          total: d.total,
+          totalSent,
+          rtoPct: totalSent > 0 ? +((d.rto / totalSent) * 100).toFixed(1) : 0,
+        };
+      })
       .sort((a, b) => b.total - a.total);
 
     // ── Product Revenue Aggregation ──
