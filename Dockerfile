@@ -25,6 +25,9 @@ RUN npm run build
 ENV NODE_ENV=production
 RUN npm prune --omit=dev
 
+# Hand ownership to appuser so prisma generate can write to node_modules at runtime
+RUN chown -R appuser:appgroup /app
+
 # Drop privileges before starting the process
 USER appuser
 
