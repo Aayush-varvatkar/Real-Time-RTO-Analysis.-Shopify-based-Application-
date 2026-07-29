@@ -65,7 +65,12 @@ export const loader = async ({ request }) => {
   // Sort & deduplicate product titles
   const storeProducts = [...new Set(allStoreProducts)].sort();
 
-  // ── 2. Fetch all orders (paginated) ─────────────────────────────────────
+  // ── 2. Fetch orders from last 90 days (paginated) ───────────────────────
+  // Filter at API level — far fewer pages than fetching all-time orders.
+  const since = new Date();
+  since.setDate(since.getDate() - 90);
+  const sinceISO = since.toISOString().split('T')[0]; // YYYY-MM-DD
+
   let allRawOrders = [];
   let hasNextPage = true;
   let cursor = null;
@@ -75,8 +80,8 @@ export const loader = async ({ request }) => {
     pageCount++;
     const response = await admin.graphql(
       `#graphql
-      query getOrdersWithTrackingForAnalytics($cursor: String) {
-        orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor) {
+      query getOrdersWithTrackingForAnalytics($cursor: String, $query: String) {
+        orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor, query: $query) {
           pageInfo {
             hasNextPage
             endCursor
@@ -141,7 +146,7 @@ export const loader = async ({ request }) => {
           }
         }
       }`,
-      { variables: { cursor } }
+      { variables: { cursor, query: `created_at:>=${sinceISO}` } }
     );
 
     const json = await response.json();

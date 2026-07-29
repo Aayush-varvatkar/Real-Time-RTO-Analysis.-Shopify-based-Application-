@@ -1,8 +1,13 @@
-import { useState, useMemo } from "react";
-import { indiaMapData } from "../routes/indiaMapData";
+import { useState, useMemo, useEffect } from "react";
 
 export default function IndiaHeatMap({ statesData }) {
   const [hoveredState, setHoveredState] = useState(null);
+  const [indiaMapData, setIndiaMapData] = useState(null);
+
+  // Lazy-load the 177KB map data after mount so it doesn't block the initial render
+  useEffect(() => {
+    import("../routes/indiaMapData").then(m => setIndiaMapData(m.indiaMapData));
+  }, []);
 
   // Normalize mapping for quick lookup
   const statsMap = useMemo(() => {
@@ -101,6 +106,11 @@ export default function IndiaHeatMap({ statesData }) {
       {/* Map Content */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
         <div style={{ width: '100%', maxWidth: '600px', display: 'flex', justifyContent: 'center' }}>
+          {!indiaMapData ? (
+            <div style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '14px' }}>
+              Loading map…
+            </div>
+          ) : (
           <svg
             viewBox={indiaMapData.viewBox}
             width="100%"
@@ -147,6 +157,7 @@ export default function IndiaHeatMap({ statesData }) {
               );
             })}
           </svg>
+          )}
         </div>
 
         {/* Legend */}
