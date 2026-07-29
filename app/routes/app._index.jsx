@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import { normalizeDeliveryStatus, enrichConnectorOrderDetails, getIsConnectorNoTracking } from "../utils/orders";
 import ProductRTO from "../components/ProductRTO";
@@ -27,48 +27,54 @@ import enTranslations from '@shopify/polaris/locales/en.json';
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
+  const url = new URL(request.url);
 
-  // ── 1. Fetch all store products (paginated) ──────────────────────────────
+  // extended=1 → background fetch for full-year data (skips product fetch, client has it already)
+  const extended = url.searchParams.get('extended') === '1';
+
   const MAX_PAGES = 40; // Hard cap: 40 × 250 = 10,000 records max (prevents DoS / timeout)
-  let allStoreProducts = [];
-  let productHasNextPage = true;
-  let productCursor = null;
-  let productPageCount = 0;
 
-  while (productHasNextPage && productPageCount < MAX_PAGES) {
-    productPageCount++;
-    const productResponse = await admin.graphql(
-      `#graphql
-      query getProducts($cursor: String) {
-        products(first: 250, after: $cursor, query: "status:active") {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              id
-              title
+  // ── 1. Fetch all store products (skipped on background extended calls) ───
+  let storeProducts = [];
+  if (!extended) {
+    let allStoreProducts = [];
+    let productHasNextPage = true;
+    let productCursor = null;
+    let productPageCount = 0;
+
+    while (productHasNextPage && productPageCount < MAX_PAGES) {
+      productPageCount++;
+      const productResponse = await admin.graphql(
+        `#graphql
+        query getProducts($cursor: String) {
+          products(first: 250, after: $cursor, query: "status:active") {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            edges {
+              node {
+                id
+                title
+              }
             }
           }
-        }
-      }`,
-      { variables: { cursor: productCursor } }
-    );
-    const productJson = await productResponse.json();
-    const productsPage = productJson.data.products;
-    allStoreProducts.push(...productsPage.edges.map((e) => e.node.title));
-    productHasNextPage = productsPage.pageInfo.hasNextPage;
-    productCursor = productsPage.pageInfo.endCursor;
+        }`,
+        { variables: { cursor: productCursor } }
+      );
+      const productJson = await productResponse.json();
+      const productsPage = productJson.data.products;
+      allStoreProducts.push(...productsPage.edges.map((e) => e.node.title));
+      productHasNextPage = productsPage.pageInfo.hasNextPage;
+      productCursor = productsPage.pageInfo.endCursor;
+    }
+    storeProducts = [...new Set(allStoreProducts)].sort();
   }
 
-  // Sort & deduplicate product titles
-  const storeProducts = [...new Set(allStoreProducts)].sort();
-
-  // ── 2. Fetch orders from last 90 days (paginated) ───────────────────────
-  // Filter at API level — far fewer pages than fetching all-time orders.
+  // ── 2. Fetch orders (90 days on first load, 365 days on background fetch) ─
+  const daysBack = extended ? 365 : 90;
   const since = new Date();
-  since.setDate(since.getDate() - 90);
+  since.setDate(since.getDate() - daysBack);
   const sinceISO = since.toISOString().split('T')[0]; // YYYY-MM-DD
 
   let allRawOrders = [];
@@ -205,7 +211,12 @@ export const loader = async ({ request }) => {
 
 
 export default function Index() {
-  const { orders = [], storeProducts = [] } = useLoaderData() || {};
+  const { orders: initialOrders = [], storeProducts = [] } = useLoaderData() || {};
+
+  // Start with 90-day data, silently replace with 365-day once background fetch completes
+  const [orders, setOrders] = useState(initialOrders);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const extendedFetcher = useFetcher();
 
   const [activeOrderCardTitle, setActiveOrderCardTitle] = useState(null);
   const orderChartRef = useRef(null);
@@ -230,6 +241,19 @@ export default function Index() {
       return () => clearTimeout(timer);
     }
   }, [activeOrderCardTitle]);
+
+  // Fire background fetch for full 365-day data after initial 90-day render
+  useEffect(() => {
+    extendedFetcher.load('/app?extended=1');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When extended data arrives, silently replace orders (no spinner, no flicker)
+  useEffect(() => {
+    if (extendedFetcher.data?.orders) {
+      setOrders(extendedFetcher.data.orders);
+      setIsLoadingHistory(false);
+    }
+  }, [extendedFetcher.data]);
 
 
 
@@ -621,6 +645,12 @@ export default function Index() {
             loading: isExporting,
           }}
         >
+          {isLoadingHistory && (
+            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#d1d5db', animation: 'pulse 1.5s infinite' }} />
+              Loading full history in background…
+            </div>
+          )}
           <BlockStack gap="400">
             <Filters
               orders={orders}
