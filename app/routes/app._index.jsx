@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useLoaderData, useFetcher } from "react-router";
+import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { normalizeDeliveryStatus, enrichConnectorOrderDetails, getIsConnectorNoTracking } from "../utils/orders";
+import { getIsConnectorNoTracking } from "../utils/orders";
+import { fetchProducts, enhanceOrders, since90DaysISO } from "../utils/loader";
 import ProductRTO from "../components/ProductRTO";
 import RTOAnalysis from "../components/RTOAnalysis";
 import IndiaHeatMap from "../components/IndiaHeatMap";
@@ -23,130 +24,42 @@ import {
 import '@shopify/polaris/build/esm/styles.css';
 import enTranslations from '@shopify/polaris/locales/en.json';
 
-// normalizeDeliveryStatus and getThirdPartyConnectorName are imported from app/utils/orders.js
-
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
-  const url = new URL(request.url);
-
-  // extended=1 → background fetch for full-year data (skips product fetch, client has it already)
-  const extended = url.searchParams.get('extended') === '1';
-
-  const MAX_PAGES = 40; // Hard cap: 40 × 250 = 10,000 records max (prevents DoS / timeout)
-
-  // ── 1. Fetch all store products (skipped on background extended calls) ───
-  let storeProducts = [];
-  if (!extended) {
-    let allStoreProducts = [];
-    let productHasNextPage = true;
-    let productCursor = null;
-    let productPageCount = 0;
-
-    while (productHasNextPage && productPageCount < MAX_PAGES) {
-      productPageCount++;
-      const productResponse = await admin.graphql(
-        `#graphql
-        query getProducts($cursor: String) {
-          products(first: 250, after: $cursor, query: "status:active") {
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-            edges {
-              node {
-                id
-                title
-              }
-            }
-          }
-        }`,
-        { variables: { cursor: productCursor } }
-      );
-      const productJson = await productResponse.json();
-      const productsPage = productJson.data.products;
-      allStoreProducts.push(...productsPage.edges.map((e) => e.node.title));
-      productHasNextPage = productsPage.pageInfo.hasNextPage;
-      productCursor = productsPage.pageInfo.endCursor;
-    }
-    storeProducts = [...new Set(allStoreProducts)].sort();
-  }
-
-  // ── 2. Fetch orders (90 days on first load, 365 days on background fetch) ─
-  const daysBack = extended ? 365 : 90;
-  const since = new Date();
-  since.setDate(since.getDate() - daysBack);
-  const sinceISO = since.toISOString().split('T')[0]; // YYYY-MM-DD
+  const storeProducts = await fetchProducts(admin);
+  const sinceISO = since90DaysISO();
 
   let allRawOrders = [];
   let hasNextPage = true;
   let cursor = null;
-  let pageCount = 0;
+  let page = 0;
+  const MAX_PAGES = 40;
 
-  while (hasNextPage && pageCount < MAX_PAGES) {
-    pageCount++;
-    const response = await admin.graphql(
+  while (hasNextPage && page < MAX_PAGES) {
+    page++;
+    const res = await admin.graphql(
       `#graphql
       query getOrdersWithTrackingForAnalytics($cursor: String, $query: String) {
         orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor, query: $query) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
+          pageInfo { hasNextPage endCursor }
           edges {
             node {
-              id
-              name
-              createdAt
-              displayFulfillmentStatus
-              totalPriceSet {
-                shopMoney {
-                  amount
-                }
-              }
-              sourceName
-              tags
-              shippingAddress {
-                city
-                province
-                zip
-              }
+              id name createdAt displayFulfillmentStatus
+              totalPriceSet { shopMoney { amount } }
+              sourceName tags
+              shippingAddress { city province zip }
               lineItems(first: 10) {
                 edges {
                   node {
-                    title
-                    quantity
-                    originalUnitPriceSet {
-                      shopMoney {
-                        amount
-                      }
-                    }
-                    discountAllocations {
-                      allocatedAmountSet {
-                        shopMoney {
-                          amount
-                        }
-                      }
-                    }
-                    product {
-                      id
-                      productType
-                    }
+                    title quantity
+                    originalUnitPriceSet { shopMoney { amount } }
+                    discountAllocations { allocatedAmountSet { shopMoney { amount } } }
+                    product { id productType }
                   }
                 }
               }
-              fulfillments {
-                id
-                status
-                displayStatus
-                trackingInfo {
-                  number
-                  company
-                }
-              }
-              customAttributes {
-                key
-                value
-              }
+              fulfillments { id status displayStatus trackingInfo { number company } }
+              customAttributes { key value }
               returnStatus
             }
           }
@@ -155,69 +68,23 @@ export const loader = async ({ request }) => {
       { variables: { cursor, query: `created_at:>=${sinceISO}` } }
     );
 
-    const json = await response.json();
-
-    // Guard: if Shopify returns errors (e.g. missing scope), stop and return what we have
-    if (!json.data || !json.data.orders) {
+    const json = await res.json();
+    if (!json.data?.orders) {
       const errMsg = (json.errors || []).map(e => e.message).join('; ') || 'Unknown error';
       console.error('[RTO-Predictor] Orders query error:', errMsg);
       break;
     }
 
-    const ordersPage = json.data.orders;
-
-    allRawOrders.push(...ordersPage.edges.map((edge) => edge.node));
-    hasNextPage = ordersPage.pageInfo.hasNextPage;
-    cursor = ordersPage.pageInfo.endCursor;
+    allRawOrders.push(...json.data.orders.edges.map(e => e.node));
+    hasNextPage = json.data.orders.pageInfo.hasNextPage;
+    cursor = json.data.orders.pageInfo.endCursor;
   }
 
-  const enhancedOrders = allRawOrders.map((order) => {
-    let orderDeliveryStatus = 'unknown';
-
-    // Normalize address fields
-    const shippingCity = (order.shippingAddress?.city || '').trim();
-    const shippingState = (order.shippingAddress?.province || '').trim();
-    const shippingPincode = (order.shippingAddress?.zip || '').trim();
-    const connectorDetails = enrichConnectorOrderDetails(order);
-
-    if (order.fulfillments && order.fulfillments.length > 0) {
-      const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
-        let trackingInfo = fulfillment.trackingInfo;
-        const actualStatus = fulfillment.displayStatus || fulfillment.status || '';
-        const normalizedStatus = normalizeDeliveryStatus(actualStatus);
-
-        if (trackingInfo && trackingInfo.length > 0) {
-          trackingInfo = trackingInfo.map((tracking) => {
-            orderDeliveryStatus = normalizedStatus;
-            return { ...tracking, courierDeliveryStatus: normalizedStatus };
-          });
-        } else {
-          orderDeliveryStatus = normalizedStatus;
-        }
-        return { ...fulfillment, trackingInfo };
-      });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, ...connectorDetails };
-    }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, ...connectorDetails };
-  });
-
-  return { orders: enhancedOrders, storeProducts };
+  return { orders: enhanceOrders(allRawOrders), storeProducts };
 };
 
-
-
-
-
-
-
 export default function Index() {
-  const { orders: initialOrders = [], storeProducts = [] } = useLoaderData() || {};
-
-  // Start with 90-day data, silently replace with 365-day once background fetch completes
-  const [orders, setOrders] = useState(initialOrders);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const extendedFetcher = useFetcher();
-
+  const { orders = [], storeProducts = [] } = useLoaderData() || {};
   const [activeOrderCardTitle, setActiveOrderCardTitle] = useState(null);
   const orderChartRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -241,19 +108,6 @@ export default function Index() {
       return () => clearTimeout(timer);
     }
   }, [activeOrderCardTitle]);
-
-  // Fire background fetch for full 365-day data after initial 90-day render
-  useEffect(() => {
-    extendedFetcher.load('/app?extended=1');
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // When extended data arrives, silently replace orders (no spinner, no flicker)
-  useEffect(() => {
-    if (extendedFetcher.data?.orders) {
-      setOrders(extendedFetcher.data.orders);
-      setIsLoadingHistory(false);
-    }
-  }, [extendedFetcher.data]);
 
 
 
@@ -506,93 +360,57 @@ export default function Index() {
         .sort((a, b) => b.rtoPct - a.rtoPct || b.rto - a.rto);
     };
 
-    // ── Product groupBy ──
+    // ── Product groupBy (RTO stats) + Revenue — single pass ──
     const productMap = {};
     filteredOrders.forEach(order => {
       const isConnectorNoTracking = getIsConnectorNoTracking(order);
-      if (isConnectorNoTracking) return;
+      const isConnector = !!order.connectorName;
+      if (isConnectorNoTracking && isConnector) return; // skip if excluded from both
+
       (order.lineItems?.edges || []).forEach(e => {
         const productTitle = e.node?.title;
         if (!productTitle) return;
-        const matchesProductFilter = !productFilter || productFilter === "All Product Types" || productTitle?.trim() === productFilter;
-        if (!matchesProductFilter) return;
+        const matchesFilter = !productFilter || productFilter === "All Product Types" || productTitle.trim() === productFilter;
+        if (!matchesFilter) return;
         const qty = e.node.quantity || 1;
+        const status = order.orderDeliveryStatus;
 
         if (!productMap[productTitle]) {
-          productMap[productTitle] = { delivered: 0, rto: 0, inTransit: 0, unfulfilled: 0, total: 0 };
+          productMap[productTitle] = { delivered: 0, rto: 0, inTransit: 0, unfulfilled: 0, total: 0, expected: 0, revDelivered: 0, revInTransit: 0, revUnfulfilled: 0, revLost: 0 };
         }
-        productMap[productTitle].total += qty;
-        if (order.orderDeliveryStatus === 'rto_failed') {
-          productMap[productTitle].rto += qty;
-        } else if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
-          productMap[productTitle].delivered += qty;
-        } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
-          productMap[productTitle].inTransit += qty;
-        } else {
-          productMap[productTitle].unfulfilled += qty;
-        }
-      });
-    });
-    const products = Object.entries(productMap)
-      .map(([name, d]) => {
-        const totalSent = d.delivered + d.rto + d.inTransit;
-        return {
-          name,
-          delivered: d.delivered,
-          rto: d.rto,
-          inTransit: d.inTransit,
-          unfulfilled: d.unfulfilled,
-          total: d.total,
-          totalSent,
-          rtoPct: totalSent > 0 ? +((d.rto / totalSent) * 100).toFixed(1) : 0,
-        };
-      })
-      .sort((a, b) => b.total - a.total);
+        const p = productMap[productTitle];
 
-    // ── Product Revenue Aggregation ──
-    const productRevenueMap = {};
-    filteredOrders.forEach(order => {
-      const isConnector = !!order.connectorName;
-      if (isConnector) return;
-
-      (order.lineItems?.edges || []).forEach(e => {
-        const productTitle = e.node?.title;
-        if (!productTitle) return;
-        const matchesProductFilter = !productFilter || productFilter === "All Product Types" || productTitle?.trim() === productFilter;
-        if (!matchesProductFilter) return;
-        const qty = e.node.quantity || 1;
-        const originalUnitPrice = Number(e.node.originalUnitPriceSet?.shopMoney?.amount || 0);
-        const originalTotal = qty * originalUnitPrice;
-        const totalDiscount = (e.node.discountAllocations || []).reduce((sum, da) => {
-          return sum + Number(da.allocatedAmountSet?.shopMoney?.amount || 0);
-        }, 0);
-        const itemRevenue = originalTotal - totalDiscount;
-
-        if (!productRevenueMap[productTitle]) {
-          productRevenueMap[productTitle] = {
-            name: productTitle,
-            expected: 0,
-            delivered: 0,
-            inTransit: 0,
-            unfulfilled: 0,
-            lost: 0
-          };
+        // RTO/delivery stats (exclude connector-no-tracking)
+        if (!isConnectorNoTracking) {
+          p.total += qty;
+          if (status === 'rto_failed') p.rto += qty;
+          else if (status === 'delivered' || status === 'fulfilled') p.delivered += qty;
+          else if (status === 'in_transit' || status === 'out_for_delivery') p.inTransit += qty;
+          else p.unfulfilled += qty;
         }
 
-        productRevenueMap[productTitle].expected += itemRevenue;
-
-        if (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled') {
-          productRevenueMap[productTitle].delivered += itemRevenue;
-        } else if (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery') {
-          productRevenueMap[productTitle].inTransit += itemRevenue;
-        } else if (order.orderDeliveryStatus === 'rto_failed') {
-          productRevenueMap[productTitle].lost += itemRevenue;
-        } else {
-          productRevenueMap[productTitle].unfulfilled += itemRevenue;
+        // Revenue (exclude all connector orders)
+        if (!isConnector) {
+          const unitPrice = Number(e.node.originalUnitPriceSet?.shopMoney?.amount || 0);
+          const discount = (e.node.discountAllocations || []).reduce((s, da) => s + Number(da.allocatedAmountSet?.shopMoney?.amount || 0), 0);
+          const rev = qty * unitPrice - discount;
+          p.expected += rev;
+          if (status === 'delivered' || status === 'fulfilled') p.revDelivered += rev;
+          else if (status === 'in_transit' || status === 'out_for_delivery') p.revInTransit += rev;
+          else if (status === 'rto_failed') p.revLost += rev;
+          else p.revUnfulfilled += rev;
         }
       });
     });
-    const productRevenues = Object.values(productRevenueMap).sort((a, b) => b.expected - a.expected);
+
+    const products = Object.entries(productMap).map(([name, d]) => {
+      const totalSent = d.delivered + d.rto + d.inTransit;
+      return { name, delivered: d.delivered, rto: d.rto, inTransit: d.inTransit, unfulfilled: d.unfulfilled, total: d.total, totalSent, rtoPct: totalSent > 0 ? +((d.rto / totalSent) * 100).toFixed(1) : 0 };
+    }).sort((a, b) => b.total - a.total);
+
+    const productRevenues = Object.entries(productMap).map(([name, d]) => ({
+      name, expected: d.expected, delivered: d.revDelivered, inTransit: d.revInTransit, unfulfilled: d.revUnfulfilled, lost: d.revLost,
+    })).filter(d => d.expected > 0).sort((a, b) => b.expected - a.expected);
 
     return {
       states: groupBy(o => o.shippingState || null),
@@ -607,28 +425,9 @@ export default function Index() {
 
 
   const styles = {
-    grid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginTop: "32px", marginBottom: "32px" },
-    card: {
-      backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: "8px",
-      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
-      border: "1px solid #e5e7eb",
-      display: "flex", flexDirection: "column"
-    },
-    cardTitleOuter: {
-      borderBottom: "1px dotted #9ca3af",
-      display: "inline-block",
-      alignSelf: "flex-start",
-      paddingBottom: "6px",
-      marginBottom: "20px"
-    },
+    cardTitleOuter: { borderBottom: "1px dotted #9ca3af", display: "inline-block", alignSelf: "flex-start", paddingBottom: "6px", marginBottom: "20px" },
     cardTitle: { fontSize: "15px", fontWeight: "500", color: "#111827", margin: 0 },
-    cardValue: { fontSize: "36px", fontWeight: "700", color: "#059669", margin: 0, lineHeight: 1 },
     section: { backgroundColor: "#fff", borderRadius: "12px", padding: "24px", boxShadow: "0 2px 4px rgba(0,0,0,0.04)", border: "1px solid #f0f0f0" },
-    sectionTitle: { fontSize: "18px", fontWeight: "600", marginBottom: "16px", color: "#1a1a1a" },
-    table: { width: "100%", borderCollapse: "collapse" },
-    th: { textAlign: "left", padding: "12px", borderBottom: "2px solid #eee", color: "#666", fontSize: "14px", fontWeight: "600" },
-    td: { padding: "12px", borderBottom: "1px solid #eee", fontSize: "14px", color: "#333" },
-    empty: { textAlign: "center", padding: "40px", color: "#888", fontStyle: "italic" }
   };
 
 
@@ -645,12 +444,6 @@ export default function Index() {
             loading: isExporting,
           }}
         >
-          {isLoadingHistory && (
-            <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#d1d5db', animation: 'pulse 1.5s infinite' }} />
-              Loading full history in background…
-            </div>
-          )}
           <BlockStack gap="400">
             <Filters
               orders={orders}

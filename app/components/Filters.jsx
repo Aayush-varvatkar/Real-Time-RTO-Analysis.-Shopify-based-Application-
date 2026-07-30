@@ -47,27 +47,12 @@ export default function Filters({
   variant = "dashboard",
   failedLabel,
 }) {
-  // Popover visibility states
-  const [datePopoverActive, setDatePopoverActive] = useState(false);
-  const toggleDatePopover = useCallback(() => setDatePopoverActive((active) => !active), []);
-
-  const [productPopoverActive, setProductPopoverActive] = useState(false);
-  const toggleProductPopover = useCallback(() => setProductPopoverActive((active) => !active), []);
-
-  const [deliveryStatusPopoverActive, setDeliveryStatusPopoverActive] = useState(false);
-  const toggleDeliveryStatusPopover = useCallback(() => setDeliveryStatusPopoverActive((active) => !active), []);
-
-  const [statePopoverActive, setStatePopoverActive] = useState(false);
-  const toggleStatePopover = useCallback(() => setStatePopoverActive((a) => !a), []);
-
-  const [cityPopoverActive, setCityPopoverActive] = useState(false);
-  const toggleCityPopover = useCallback(() => setCityPopoverActive((a) => !a), []);
-
-  const [pincodePopoverActive, setPincodePopoverActive] = useState(false);
-  const togglePincodePopover = useCallback(() => setPincodePopoverActive((a) => !a), []);
-
-  const [courierPopoverActive, setCourierPopoverActive] = useState(false);
-  const toggleCourierPopover = useCallback(() => setCourierPopoverActive((a) => !a), []);
+  // Single state object for all popover visibility — one toggle fn covers all
+  const [popoverActive, setPopoverActive] = useState({});
+  const togglePopover = useCallback(
+    (key) => setPopoverActive(prev => ({ ...prev, [key]: !prev[key] })),
+    []
+  );
 
   // Calendar page states (month and year)
   const [{ month, year }, setDate] = useState(() => ({
@@ -153,7 +138,7 @@ export default function Filters({
   };
 
   // Unique options derivations
-  const uniqueProducts = useMemo(() => storeProducts, [storeProducts]);
+  const uniqueProducts = storeProducts;
 
   const uniqueStates = useMemo(() => {
     const vals = new Set();
@@ -201,27 +186,27 @@ export default function Filters({
 
   // Activators and options arrays
   const dateButton = (
-    <Button onClick={toggleDatePopover} icon={CalendarIcon}>
+    <Button onClick={() => togglePopover('date')} icon={CalendarIcon}>
       {presetOptions.find(o => o.value === presetFilter)?.label || 'Custom'}
     </Button>
   );
 
   const productActivator = (
-    <Button onClick={toggleProductPopover} icon={FilterIcon}>
+    <Button onClick={() => togglePopover('product')} icon={FilterIcon}>
       {productFilter}
     </Button>
   );
 
   const productOptions = [
-    { content: "All Product Types", onAction: () => { setProductFilter("All Product Types"); toggleProductPopover(); } },
+    { content: "All Product Types", onAction: () => { setProductFilter("All Product Types"); togglePopover('product'); } },
     ...uniqueProducts.map(fp => ({
       content: fp,
-      onAction: () => { setProductFilter(fp); toggleProductPopover(); }
+      onAction: () => { setProductFilter(fp); togglePopover('product'); }
     }))
   ];
 
   const deliveryStatusActivator = (
-    <Button onClick={toggleDeliveryStatusPopover} icon={FilterIcon}>
+    <Button onClick={() => togglePopover('deliveryStatus')} icon={FilterIcon}>
       {deliveryStatusFilter}
     </Button>
   );
@@ -230,10 +215,10 @@ export default function Filters({
 
   const deliveryStatusOptions = useMemo(() => {
     const options = [
-      { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); toggleDeliveryStatusPopover(); } },
-      { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); toggleDeliveryStatusPopover(); } },
-      { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); toggleDeliveryStatusPopover(); } },
-      { content: resolvedFailedLabel, onAction: () => { setDeliveryStatusFilter(resolvedFailedLabel); toggleDeliveryStatusPopover(); } }
+      { content: "All Statuses", onAction: () => { setDeliveryStatusFilter("All Statuses"); togglePopover('deliveryStatus'); } },
+      { content: "In-Transit", onAction: () => { setDeliveryStatusFilter("In-Transit"); togglePopover('deliveryStatus'); } },
+      { content: "Delivered", onAction: () => { setDeliveryStatusFilter("Delivered"); togglePopover('deliveryStatus'); } },
+      { content: resolvedFailedLabel, onAction: () => { setDeliveryStatusFilter(resolvedFailedLabel); togglePopover('deliveryStatus'); } }
     ];
 
     uniqueConnectors.forEach(conn => {
@@ -241,43 +226,43 @@ export default function Filters({
         content: `Dispatched by ${conn}`,
         onAction: () => {
           setDeliveryStatusFilter(`Dispatched by ${conn}`);
-          toggleDeliveryStatusPopover();
+          togglePopover('deliveryStatus');
         }
       });
     });
 
     return options;
-  }, [uniqueConnectors, setDeliveryStatusFilter, toggleDeliveryStatusPopover, resolvedFailedLabel]);
+  }, [uniqueConnectors, setDeliveryStatusFilter, togglePopover, resolvedFailedLabel]);
 
   const stateOptions = [
-    { content: "All States", onAction: () => { setStateFilter("All States"); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); } },
+    { content: "All States", onAction: () => { setStateFilter("All States"); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); togglePopover('state'); } },
     ...uniqueStates.map(s => ({
       content: s,
-      onAction: () => { setStateFilter(s); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleStatePopover(); }
+      onAction: () => { setStateFilter(s); setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); togglePopover('state'); }
     }))
   ];
 
   const cityOptions = [
-    { content: "All Cities", onAction: () => { setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); toggleCityPopover(); } },
+    { content: "All Cities", onAction: () => { setCityFilter("All Cities"); setPincodeFilter("All Pincodes"); togglePopover('city'); } },
     ...uniqueCities.map(c => ({
       content: c,
-      onAction: () => { setCityFilter(c); setPincodeFilter("All Pincodes"); toggleCityPopover(); }
+      onAction: () => { setCityFilter(c); setPincodeFilter("All Pincodes"); togglePopover('city'); }
     }))
   ];
 
   const pincodeOptions = [
-    { content: "All Pincodes", onAction: () => { setPincodeFilter("All Pincodes"); togglePincodePopover(); } },
+    { content: "All Pincodes", onAction: () => { setPincodeFilter("All Pincodes"); togglePopover('pincode'); } },
     ...uniquePincodes.map(p => ({
       content: p,
-      onAction: () => { setPincodeFilter(p); togglePincodePopover(); }
+      onAction: () => { setPincodeFilter(p); togglePopover('pincode'); }
     }))
   ];
 
   const courierOptions = [
-    { content: "All Couriers", onAction: () => { setCourierFilter("All Couriers"); toggleCourierPopover(); } },
+    { content: "All Couriers", onAction: () => { setCourierFilter("All Couriers"); togglePopover('courier'); } },
     ...uniqueCouriers.map(c => ({
       content: c,
-      onAction: () => { setCourierFilter(c); toggleCourierPopover(); }
+      onAction: () => { setCourierFilter(c); togglePopover('courier'); }
     }))
   ];
 
@@ -287,10 +272,10 @@ export default function Filters({
     <InlineStack gap="400" blockAlign="center" wrap={isOrders ? false : undefined}>
       {/* Date Picker Popover */}
       <Popover
-        active={datePopoverActive}
+        active={popoverActive.date}
         activator={dateButton}
         autofocusTarget="none"
-        onClose={toggleDatePopover}
+        onClose={() => togglePopover('date')}
         fluidContent
       >
         <Box padding="400" width="650px">
@@ -342,11 +327,11 @@ export default function Filters({
             />
             <Divider />
             {isOrders ? (
-              <Button onClick={toggleDatePopover} variant="primary" tone="success">Apply</Button>
+              <Button onClick={() => togglePopover('date')} variant="primary" tone="success">Apply</Button>
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px' }}>
-                <Button onClick={toggleDatePopover}>Cancel</Button>
-                <Button onClick={toggleDatePopover} variant="primary" tone="success">Apply</Button>
+                <Button onClick={() => togglePopover('date')}>Cancel</Button>
+                <Button onClick={() => togglePopover('date')} variant="primary" tone="success">Apply</Button>
               </div>
             )}
           </BlockStack>
@@ -356,9 +341,9 @@ export default function Filters({
       <Text as="span" tone="subdued">Compared to {formatDateForComparison(selectedDates.start, selectedDates.end)}</Text>
 
       <Popover
-        active={productPopoverActive}
+        active={popoverActive.product}
         activator={productActivator}
-        onClose={toggleProductPopover}
+        onClose={() => togglePopover('product')}
       >
         <div style={{ minWidth: "200px" }}>
           <ActionList items={productOptions} />
@@ -366,9 +351,9 @@ export default function Filters({
       </Popover>
 
       <Popover
-        active={deliveryStatusPopoverActive}
+        active={popoverActive.deliveryStatus}
         activator={deliveryStatusActivator}
-        onClose={toggleDeliveryStatusPopover}
+        onClose={() => togglePopover('deliveryStatus')}
       >
         <div style={{ minWidth: "150px" }}>
           <ActionList items={deliveryStatusOptions} />
@@ -377,13 +362,13 @@ export default function Filters({
 
       {/* State Filter */}
       <Popover
-        active={statePopoverActive}
+        active={popoverActive.state}
         activator={
-          <Button onClick={toggleStatePopover} icon={FilterIcon}>
+          <Button onClick={() => togglePopover('state')} icon={FilterIcon}>
             {stateFilter}
           </Button>
         }
-        onClose={toggleStatePopover}
+        onClose={() => togglePopover('state')}
       >
         <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
           <ActionList items={stateOptions} />
@@ -392,13 +377,13 @@ export default function Filters({
 
       {/* City Filter */}
       <Popover
-        active={cityPopoverActive}
+        active={popoverActive.city}
         activator={
-          <Button onClick={toggleCityPopover} icon={FilterIcon}>
+          <Button onClick={() => togglePopover('city')} icon={FilterIcon}>
             {cityFilter}
           </Button>
         }
-        onClose={toggleCityPopover}
+        onClose={() => togglePopover('city')}
       >
         <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
           <ActionList items={cityOptions} />
@@ -407,13 +392,13 @@ export default function Filters({
 
       {/* Pincode Filter */}
       <Popover
-        active={pincodePopoverActive}
+        active={popoverActive.pincode}
         activator={
-          <Button onClick={togglePincodePopover} icon={FilterIcon}>
+          <Button onClick={() => togglePopover('pincode')} icon={FilterIcon}>
             {pincodeFilter}
           </Button>
         }
-        onClose={togglePincodePopover}
+        onClose={() => togglePopover('pincode')}
       >
         <div style={{ minWidth: "160px", maxHeight: "260px", overflowY: "auto" }}>
           <ActionList items={pincodeOptions} />
@@ -422,13 +407,13 @@ export default function Filters({
 
       {/* Courier Filter */}
       <Popover
-        active={courierPopoverActive}
+        active={popoverActive.courier}
         activator={
-          <Button onClick={toggleCourierPopover} icon={FilterIcon}>
+          <Button onClick={() => togglePopover('courier')} icon={FilterIcon}>
             {courierFilter}
           </Button>
         }
-        onClose={toggleCourierPopover}
+        onClose={() => togglePopover('courier')}
       >
         <div style={{ minWidth: "180px", maxHeight: "260px", overflowY: "auto" }}>
           <ActionList items={courierOptions} />

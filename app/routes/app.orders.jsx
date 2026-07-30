@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { normalizeDeliveryStatus, enrichConnectorOrderDetails, getIsConnectorNoTracking } from "../utils/orders";
+import { getIsConnectorNoTracking } from "../utils/orders";
+import { fetchProducts, enhanceOrders, since90DaysISO } from "../utils/loader";
 import Filters from "../components/Filters";
 
 import {
@@ -14,52 +15,10 @@ import { ExportIcon } from '@shopify/polaris-icons';
 import '@shopify/polaris/build/esm/styles.css';
 import enTranslations from '@shopify/polaris/locales/en.json';
 
-// normalizeDeliveryStatus and getThirdPartyConnectorName are imported from app/utils/orders.js
-
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
-
-  // ── 1. Fetch all store products (paginated) ──────────────────────────────
-  const MAX_PAGES = 40; // Hard cap: 40 × 250 = 10,000 records max (prevents DoS / timeout)
-  let allStoreProducts = [];
-  let productHasNextPage = true;
-  let productCursor = null;
-  let productPageCount = 0;
-
-  while (productHasNextPage && productPageCount < MAX_PAGES) {
-    productPageCount++;
-    const productResponse = await admin.graphql(
-      `#graphql
-      query getProducts($cursor: String) {
-        products(first: 250, after: $cursor, query: "status:active") {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              id
-              title
-            }
-          }
-        }
-      }`,
-      { variables: { cursor: productCursor } }
-    );
-    const productJson = await productResponse.json();
-    const productsPage = productJson.data.products;
-    allStoreProducts.push(...productsPage.edges.map((e) => e.node.title));
-    productHasNextPage = productsPage.pageInfo.hasNextPage;
-    productCursor = productsPage.pageInfo.endCursor;
-  }
-
-  // Sort & deduplicate product titles
-  const storeProducts = [...new Set(allStoreProducts)].sort();
-
-  // ── 2. Fetch orders from last 90 days (paginated) ───────────────────────
-  const since = new Date();
-  since.setDate(since.getDate() - 90);
-  const sinceISO = since.toISOString().split('T')[0];
+  const storeProducts = await fetchProducts(admin);
+  const sinceISO = since90DaysISO();
 
   let allRawOrders = [];
   let hasNextPage = true;
@@ -140,43 +99,12 @@ export const loader = async ({ request }) => {
 
     const ordersPage = json.data.orders;
 
-    allRawOrders.push(...ordersPage.edges.map((edge) => edge.node));
-    hasNextPage = ordersPage.pageInfo.hasNextPage;
-    cursor = ordersPage.pageInfo.endCursor;
+    allRawOrders.push(...json.data.orders.edges.map(e => e.node));
+    hasNextPage = json.data.orders.pageInfo.hasNextPage;
+    cursor = json.data.orders.pageInfo.endCursor;
   }
 
-  const enhancedOrders = allRawOrders.map((order) => {
-    let orderDeliveryStatus = 'unknown';
-
-    // Normalize address fields
-    const shippingCity = (order.shippingAddress?.city || '').trim();
-    const shippingState = (order.shippingAddress?.province || '').trim();
-    const shippingPincode = (order.shippingAddress?.zip || '').trim();
-
-    const connectorDetails = enrichConnectorOrderDetails(order);
-
-    if (order.fulfillments && order.fulfillments.length > 0) {
-      const enrichedFulfillments = order.fulfillments.map((fulfillment) => {
-        let trackingInfo = fulfillment.trackingInfo;
-        const actualStatus = fulfillment.displayStatus || fulfillment.status || '';
-        const normalizedStatus = normalizeDeliveryStatus(actualStatus);
-
-        if (trackingInfo && trackingInfo.length > 0) {
-          trackingInfo = trackingInfo.map((tracking) => {
-            orderDeliveryStatus = normalizedStatus;
-            return { ...tracking, courierDeliveryStatus: normalizedStatus };
-          });
-        } else {
-          orderDeliveryStatus = normalizedStatus;
-        }
-        return { ...fulfillment, trackingInfo };
-      });
-      return { ...order, fulfillments: enrichedFulfillments, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, ...connectorDetails };
-    }
-    return { ...order, orderDeliveryStatus, shippingCity, shippingState, shippingPincode, ...connectorDetails };
-  });
-
-  return { orders: enhancedOrders, storeProducts };
+  return { orders: enhanceOrders(allRawOrders), storeProducts };
 };
 
 export default function Orders() {
