@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
 const CustomTooltip = ({ active, payload, total }) => {
@@ -16,13 +17,17 @@ const CustomTooltip = ({ active, payload, total }) => {
 };
 
 export default function TrackingStatusHistory({ trackingStatusData, pieTotal }) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
   return (
     <>
       <div style={{ borderBottom: "1px dotted #9ca3af", display: "inline-block", alignSelf: "flex-start", paddingBottom: "6px", marginBottom: "20px" }}>
         <h3 style={{ fontSize: "15px", fontWeight: "500", color: "#111827", margin: 0 }}>Tracking-Status History</h3>
       </div>
       <div style={{ width: '100%', height: 380, marginTop: '12px' }}>
-        <ResponsiveContainer width="100%" height="100%">
+        {isMounted && (
+          <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={trackingStatusData}
@@ -49,6 +54,7 @@ export default function TrackingStatusHistory({ trackingStatusData, pieTotal }) 
             />
           </PieChart>
         </ResponsiveContainer>
+        )}
       </div>
     </>
   );

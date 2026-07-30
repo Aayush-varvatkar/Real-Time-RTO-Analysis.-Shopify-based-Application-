@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Bar } from "recharts";
 
 const CustomBarTooltip = ({ active, payload, label }) => {
@@ -81,49 +82,54 @@ const renderCustomLegend = () => {
 };
 
 export default function OrderHistoryChart({ chartData }) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
   return (
     <div style={{ backgroundColor: "#fff", borderRadius: "12px", padding: "24px", boxShadow: "0 2px 4px rgba(0,0,0,0.04)", border: "1px solid #f0f0f0" }}>
       <div style={{ borderBottom: "1px dotted #9ca3af", display: "inline-block", alignSelf: "flex-start", paddingBottom: "6px", marginBottom: "20px" }}>
         <h3 style={{ fontSize: "15px", fontWeight: "500", color: "#111827", margin: 0 }}>Order History</h3>
       </div>
       <div style={{ width: '100%', height: 400, marginTop: '20px' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={chartData}
-            margin={{ top: 20, right: 30, left: 0, bottom: 40 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#f0f0f0" />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 10, fill: '#666' }}
-              tickMargin={10}
-              angle={-45}
-              textAnchor="end"
-              axisLine={{ stroke: '#e5e7eb' }}
-              tickLine={false}
-              height={70}
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: '#666' }}
-              axisLine={false}
-              tickLine={false}
-              allowDecimals={false}
-            />
-            <Tooltip
-              cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-              content={<CustomBarTooltip />}
-            />
-            <Legend
-              content={renderCustomLegend}
-            />
-            <Bar dataKey="Total Orders" stackId="total" fill="#818cf8" barSize={6} />
-            <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#fbbf24" barSize={6} />
-            <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#26a69a" barSize={6} />
-            <Bar dataKey="Delivered" stackId="logistics" fill="#34d399" barSize={6} />
-            <Bar dataKey="In-Transit" stackId="logistics" fill="#60a5fa" barSize={6} />
-            <Bar dataKey="Failed" stackId="logistics" fill="#f87171" barSize={6} />
-          </BarChart>
-        </ResponsiveContainer>
+        {isMounted && (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              margin={{ top: 20, right: 30, left: 0, bottom: 40 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#f0f0f0" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: '#666' }}
+                tickMargin={10}
+                angle={-45}
+                textAnchor="end"
+                axisLine={{ stroke: '#e5e7eb' }}
+                tickLine={false}
+                height={70}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: '#666' }}
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                content={<CustomBarTooltip />}
+              />
+              <Legend
+                content={renderCustomLegend}
+              />
+              <Bar dataKey="Total Orders" stackId="total" fill="#818cf8" barSize={6} />
+              <Bar dataKey="Unfulfilled" stackId="unfulfilled" fill="#fbbf24" barSize={6} />
+              <Bar dataKey="Fulfilled" stackId="fulfilled" fill="#26a69a" barSize={6} />
+              <Bar dataKey="Delivered" stackId="logistics" fill="#34d399" barSize={6} />
+              <Bar dataKey="In-Transit" stackId="logistics" fill="#60a5fa" barSize={6} />
+              <Bar dataKey="Failed" stackId="logistics" fill="#f87171" barSize={6} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { normalizeDeliveryStatus, enrichConnectorOrderDetails } from "./orders.js";
 
-const MAX_PAGES = 40; // Hard cap: 40 × 250 = 10,000 records (prevents DoS / timeout)
+const MAX_PRODUCT_PAGES = 5; // Up to 1,250 active products
+const MAX_ORDER_PAGES = 8;   // Up to 2,000 orders in last 90 days (prevents SSR 25s timeout)
 
 // ── Product cache (per shop, 5-min TTL, lives on the server worker process) ──
 // Eliminates duplicate products API calls between dashboard and orders page loads.
@@ -21,7 +22,7 @@ export async function fetchProducts(admin, shop) {
   let cursor = null;
   let page = 0;
 
-  while (hasNextPage && page < MAX_PAGES) {
+  while (hasNextPage && page < MAX_PRODUCT_PAGES) {
     page++;
     const res = await admin.graphql(
       `#graphql
@@ -55,7 +56,7 @@ export async function fetchAllOrdersPages(admin, gqlQuery, sinceISO) {
   let cursor = null;
   let page = 0;
 
-  while (hasNextPage && page < MAX_PAGES) {
+  while (hasNextPage && page < MAX_ORDER_PAGES) {
     page++;
     const res = await admin.graphql(gqlQuery, {
       variables: { cursor, query: `created_at:>=${sinceISO}` }

@@ -1,7 +1,10 @@
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
 export default function ConnectorStatusCard({ orders = [] }) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
   const { connectorOrders, pieData, platforms } = useMemo(() => {
     const now = new Date();
     const connectorOrdersList = orders.filter(o => !!o.connectorName);
@@ -57,8 +60,9 @@ export default function ConnectorStatusCard({ orders = [] }) {
     <div style={{ flex: 1 }}>
       {/* Pie chart */}
       <div style={{ height: 260 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
+        {isMounted && (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
             <Pie
               data={pieData}
               dataKey="value"
@@ -82,6 +86,7 @@ export default function ConnectorStatusCard({ orders = [] }) {
             />
           </PieChart>
         </ResponsiveContainer>
+        )}
       </div>
 
       {/* Per-platform breakdown table */}

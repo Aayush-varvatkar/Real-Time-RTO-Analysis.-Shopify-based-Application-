@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
 const RTO_COLORS = ['#ef4444', '#f97316', '#eab308', '#8b5cf6', '#06b6d4'];
@@ -6,6 +6,9 @@ const CARD_DEFAULT = 5;
 const CARD_PAGE = 20;
 
 export default function RTOAnalysis({ title, label, data, fullWidth = false, showInTransit = false }) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
   const [expanded, setExpanded] = useState(false);
   const [page, setPage] = useState(0);
   const [sortField, setSortField] = useState('rtoPct'); // Default RTO %
@@ -188,19 +191,21 @@ export default function RTOAnalysis({ title, label, data, fullWidth = false, sho
 
           {/* Pie chart side — always top-5 */}
           <div style={{ width: fullWidth ? '220px' : '180px', flexShrink: 0, borderLeft: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 0' }}>
-            <ResponsiveContainer width={pieW} height={pieW}>
-              <PieChart>
-                <Pie
-                  data={pieData.map(r => ({ name: r.name, value: r.rto }))}
-                  dataKey="value" nameKey="name"
-                  cx="50%" cy="50%" innerRadius={innerR} outerRadius={outerR} isAnimationActive={false}>
-                  {pieData.map((_, i) => <Cell key={i} fill={RTO_COLORS[i]} />)}
-                </Pie>
-                <Tooltip formatter={(value, name) => [`${value} RTO`, name]}
-                  contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
-                  wrapperStyle={{ outline: 'none' }} />
-              </PieChart>
-            </ResponsiveContainer>
+            {isMounted && (
+              <ResponsiveContainer width={pieW} height={pieW}>
+                <PieChart>
+                  <Pie
+                    data={pieData.map(r => ({ name: r.name, value: r.rto }))}
+                    dataKey="value" nameKey="name"
+                    cx="50%" cy="50%" innerRadius={innerR} outerRadius={outerR} isAnimationActive={false}>
+                    {pieData.map((_, i) => <Cell key={i} fill={RTO_COLORS[i]} />)}
+                  </Pie>
+                  <Tooltip formatter={(value, name) => [`${value} RTO`, name]}
+                    contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+                    wrapperStyle={{ outline: 'none' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       )}
