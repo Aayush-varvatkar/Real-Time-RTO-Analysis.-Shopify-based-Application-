@@ -1,54 +1,49 @@
+import { useMemo } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
-export default function ConnectorStatusCard({ orders }) {
-  const now = new Date();
+export default function ConnectorStatusCard({ orders = [] }) {
+  const { connectorOrders, pieData, platforms } = useMemo(() => {
+    const now = new Date();
+    const connectorOrdersList = orders.filter(o => !!o.connectorName);
 
-  // Include ALL connector orders
-  const connectorOrders = orders.filter(o => !!o.connectorName);
+    const getConnectorStatus = (order) => {
+      if (order.connectorReturnClosed) return 'RTO / Failed';
+      const latestDelivery = order.connectorLatestDeliveryDate
+        ? new Date(order.connectorLatestDeliveryDate)
+        : null;
+      const isFulfilled = (order.displayFulfillmentStatus || '').toLowerCase() === 'fulfilled';
 
-  const getConnectorStatus = (order) => {
-    // Any return activity on connector order → RTO / Failed
-    if (order.connectorReturnClosed) return 'RTO / Failed';
-
-    const latestDelivery = order.connectorLatestDeliveryDate
-      ? new Date(order.connectorLatestDeliveryDate)
-      : null;
-    const isFulfilled = (order.displayFulfillmentStatus || '').toLowerCase() === 'fulfilled';
-
-    if (latestDelivery) {
-      if (now >= latestDelivery) {
-        // Past latest delivery date
-        return isFulfilled ? 'Delivered' : 'Unfulfilled';
-      } else {
-        return 'In Transit';
+      if (latestDelivery) {
+        return now >= latestDelivery ? (isFulfilled ? 'Delivered' : 'Unfulfilled') : 'In Transit';
       }
-    }
+      return isFulfilled ? 'Delivered' : 'Unfulfilled';
+    };
 
-    // No delivery date — use fulfillment status
-    return isFulfilled ? 'Delivered' : 'Unfulfilled';
-  };
+    const counts = { 'In Transit': 0, 'Delivered': 0, 'Unfulfilled': 0, 'RTO / Failed': 0 };
+    const byPlatform = {};
 
-  // Aggregate counts — 4 categories only
-  const counts = { 'In Transit': 0, 'Delivered': 0, 'Unfulfilled': 0, 'RTO / Failed': 0 };
-  const byPlatform = {};
+    connectorOrdersList.forEach(order => {
+      const status = getConnectorStatus(order);
+      counts[status] = (counts[status] || 0) + 1;
+      const p = order.connectorName;
+      if (!byPlatform[p]) byPlatform[p] = { 'In Transit': 0, 'Delivered': 0, 'Unfulfilled': 0, 'RTO / Failed': 0, total: 0 };
+      byPlatform[p][status] = (byPlatform[p][status] || 0) + 1;
+      byPlatform[p].total++;
+    });
 
-  connectorOrders.forEach(order => {
-    const status = getConnectorStatus(order);
-    counts[status] = (counts[status] || 0) + 1;
-    const p = order.connectorName;
-    if (!byPlatform[p]) byPlatform[p] = { 'In Transit': 0, 'Delivered': 0, 'Unfulfilled': 0, 'RTO / Failed': 0, total: 0 };
-    byPlatform[p][status] = (byPlatform[p][status] || 0) + 1;
-    byPlatform[p].total++;
-  });
+    const pie = [
+      { name: 'In Transit', value: counts['In Transit'], color: '#3b82f6' },
+      { name: 'Delivered', value: counts['Delivered'], color: '#10b981' },
+      { name: 'Unfulfilled', value: counts['Unfulfilled'], color: '#f59e0b' },
+      { name: 'RTO / Failed', value: counts['RTO / Failed'], color: '#ef4444' },
+    ].filter(d => d.value > 0);
 
-  const pieData = [
-    { name: 'In Transit', value: counts['In Transit'], color: '#3b82f6' },
-    { name: 'Delivered', value: counts['Delivered'], color: '#10b981' },
-    { name: 'Unfulfilled', value: counts['Unfulfilled'], color: '#f59e0b' },
-    { name: 'RTO / Failed', value: counts['RTO / Failed'], color: '#ef4444' },
-  ].filter(d => d.value > 0);
-
-  const platforms = Object.entries(byPlatform);
+    return {
+      connectorOrders: connectorOrdersList,
+      pieData: pie,
+      platforms: Object.entries(byPlatform)
+    };
+  }, [orders]);
 
   if (connectorOrders.length === 0) {
     return (

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { getIsConnectorNoTracking } from "../utils/orders";
+import { getIsConnectorNoTracking, filterOrders } from "../utils/orders";
 import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
 import ProductRTO from "../components/ProductRTO";
 import RTOAnalysis from "../components/RTOAnalysis";
@@ -112,68 +112,15 @@ export default function Index() {
 
   // Filter logic
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
-      // 1. Date Filter
-      const orderDate = new Date(order.createdAt);
-      if (selectedDates && selectedDates.start && selectedDates.end) {
-        const start = new Date(selectedDates.start);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(selectedDates.end);
-        end.setHours(23, 59, 59, 999);
-
-        if (orderDate < start || orderDate > end) {
-          return false;
-        }
-      }
-
-      // 2. Product Filter
-      if (productFilter && productFilter !== "All Product Types") {
-        const hasProduct = order.lineItems?.edges?.some(
-          item => item.node.title?.trim() === productFilter
-        );
-        if (!hasProduct) return false;
-      }
-
-      // 3. Delivery Status Filter
-      if (deliveryStatusFilter !== "All Statuses") {
-        let statusMatches = false;
-        if (deliveryStatusFilter === "Delivered") {
-          statusMatches = (order.orderDeliveryStatus === 'delivered' || order.orderDeliveryStatus === 'fulfilled');
-        } else if (deliveryStatusFilter === "In-Transit") {
-          const isConnectorNoTracking = getIsConnectorNoTracking(order);
-          statusMatches = !isConnectorNoTracking && (order.orderDeliveryStatus === 'in_transit' || order.orderDeliveryStatus === 'out_for_delivery');
-        } else if (deliveryStatusFilter === "Failed") {
-          statusMatches = (order.orderDeliveryStatus === 'rto_failed');
-        } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
-          const connName = deliveryStatusFilter.replace("Dispatched by ", "");
-          const isConnectorNoTracking = getIsConnectorNoTracking(order, connName);
-          statusMatches = isConnectorNoTracking;
-        }
-        if (!statusMatches) return false;
-      }
-
-      // 4. State Filter
-      if (stateFilter !== "All States") {
-        if (order.shippingState !== stateFilter) return false;
-      }
-
-      // 5. City Filter
-      if (cityFilter !== "All Cities") {
-        if (order.shippingCity !== cityFilter) return false;
-      }
-
-      // 6. Pincode Filter
-      if (pincodeFilter !== "All Pincodes") {
-        if (order.shippingPincode !== pincodeFilter) return false;
-      }
-
-      // 7. Courier Filter
-      if (courierFilter !== "All Couriers") {
-        const orderCourier = order.fulfillments?.[0]?.trackingInfo?.[0]?.company?.trim();
-        if (orderCourier !== courierFilter) return false;
-      }
-
-      return true;
+    return filterOrders(orders, {
+      selectedDates,
+      productFilter,
+      deliveryStatusFilter,
+      stateFilter,
+      cityFilter,
+      pincodeFilter,
+      courierFilter,
+      failedLabel: "Failed"
     });
   }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter, courierFilter]);
 

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { getIsConnectorNoTracking } from "../utils/orders";
+import { getIsConnectorNoTracking, filterOrders } from "../utils/orders";
 import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
 import Filters from "../components/Filters";
 
@@ -70,53 +70,15 @@ export default function Orders() {
   const [courierFilter, setCourierFilter] = useState("All Couriers");
 
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
-      // 1. Date Filter
-      const orderDate = new Date(order.createdAt);
-      if (selectedDates && selectedDates.start && selectedDates.end) {
-        const start = new Date(selectedDates.start);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(selectedDates.end);
-        end.setHours(23, 59, 59, 999);
-
-        if (orderDate < start || orderDate > end) {
-          return false;
-        }
-      }
-
-      // 2. Product Filter
-      if (productFilter && productFilter !== "All Product Types") {
-        const hasProduct = order.lineItems?.edges?.some(
-          item => item.node.title?.trim() === productFilter
-        );
-        if (!hasProduct) return false;
-      }
-
-      // 3. Delivery Status Filter
-      if (deliveryStatusFilter !== "All Statuses") {
-        const orderStatus = order.orderDeliveryStatus;
-        let statusMatches = false;
-        if (deliveryStatusFilter === "Delivered") {
-          statusMatches = (orderStatus === 'delivered' || orderStatus === 'fulfilled');
-        } else if (deliveryStatusFilter === "In-Transit") {
-          const isConnectorNoTracking = getIsConnectorNoTracking(order);
-          statusMatches = !isConnectorNoTracking && (orderStatus === 'in_transit' || orderStatus === 'out_for_delivery');
-        } else if (deliveryStatusFilter === "RTO") {
-          statusMatches = (orderStatus === 'rto_failed');
-        } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
-          const connName = deliveryStatusFilter.replace("Dispatched by ", "");
-          const isConnectorNoTracking = getIsConnectorNoTracking(order, connName);
-          statusMatches = isConnectorNoTracking;
-        }
-        if (!statusMatches) return false;
-      }
-
-      if (stateFilter !== "All States" && order.shippingState !== stateFilter) return false;
-      if (cityFilter !== "All Cities" && order.shippingCity !== cityFilter) return false;
-      if (pincodeFilter !== "All Pincodes" && order.shippingPincode !== pincodeFilter) return false;
-      if (courierFilter !== "All Couriers" && order.fulfillments?.[0]?.trackingInfo?.[0]?.company?.trim() !== courierFilter) return false;
-
-      return true;
+    return filterOrders(orders, {
+      selectedDates,
+      productFilter,
+      deliveryStatusFilter,
+      stateFilter,
+      cityFilter,
+      pincodeFilter,
+      courierFilter,
+      failedLabel: "RTO"
     });
   }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter, courierFilter]);
 

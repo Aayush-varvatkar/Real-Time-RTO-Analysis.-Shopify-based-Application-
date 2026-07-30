@@ -133,3 +133,81 @@ export function enrichConnectorOrderDetails(order) {
     connectorReturnClosed,
   };
 }
+
+/**
+ * Filter orders based on standard dashboard/orders filter criteria.
+ * Shared by app._index.jsx and app.orders.jsx.
+ */
+export function filterOrders(orders, {
+  selectedDates,
+  productFilter = "All Product Types",
+  deliveryStatusFilter = "All Statuses",
+  stateFilter = "All States",
+  cityFilter = "All Cities",
+  pincodeFilter = "All Pincodes",
+  courierFilter = "All Couriers",
+  failedLabel = "Failed"
+} = {}) {
+  let startMs = null;
+  let endMs = null;
+  if (selectedDates?.start && selectedDates?.end) {
+    const s = new Date(selectedDates.start);
+    s.setHours(0, 0, 0, 0);
+    startMs = s.getTime();
+    const e = new Date(selectedDates.end);
+    e.setHours(23, 59, 59, 999);
+    endMs = e.getTime();
+  }
+
+  return orders.filter(order => {
+    // 1. Date Filter
+    if (startMs !== null && endMs !== null) {
+      const orderMs = new Date(order.createdAt).getTime();
+      if (orderMs < startMs || orderMs > endMs) return false;
+    }
+
+    // 2. Product Filter
+    if (productFilter && productFilter !== "All Product Types") {
+      const hasProduct = order.lineItems?.edges?.some(
+        item => item.node.title?.trim() === productFilter
+      );
+      if (!hasProduct) return false;
+    }
+
+    // 3. Delivery Status Filter
+    if (deliveryStatusFilter !== "All Statuses") {
+      const status = order.orderDeliveryStatus;
+      let statusMatches = false;
+      if (deliveryStatusFilter === "Delivered") {
+        statusMatches = (status === 'delivered' || status === 'fulfilled');
+      } else if (deliveryStatusFilter === "In-Transit") {
+        const isConnectorNoTracking = getIsConnectorNoTracking(order);
+        statusMatches = !isConnectorNoTracking && (status === 'in_transit' || status === 'out_for_delivery');
+      } else if (deliveryStatusFilter === failedLabel || deliveryStatusFilter === "Failed" || deliveryStatusFilter === "RTO") {
+        statusMatches = (status === 'rto_failed');
+      } else if (deliveryStatusFilter.startsWith("Dispatched by ")) {
+        const connName = deliveryStatusFilter.replace("Dispatched by ", "");
+        statusMatches = getIsConnectorNoTracking(order, connName);
+      }
+      if (!statusMatches) return false;
+    }
+
+    // 4. State Filter
+    if (stateFilter !== "All States" && order.shippingState !== stateFilter) return false;
+
+    // 5. City Filter
+    if (cityFilter !== "All Cities" && order.shippingCity !== cityFilter) return false;
+
+    // 6. Pincode Filter
+    if (pincodeFilter !== "All Pincodes" && order.shippingPincode !== pincodeFilter) return false;
+
+    // 7. Courier Filter
+    if (courierFilter !== "All Couriers") {
+      const orderCourier = order.fulfillments?.[0]?.trackingInfo?.[0]?.company?.trim();
+      if (orderCourier !== courierFilter) return false;
+    }
+
+    return true;
+  });
+}
+
