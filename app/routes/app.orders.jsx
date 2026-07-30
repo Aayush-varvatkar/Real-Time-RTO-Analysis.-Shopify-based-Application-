@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getIsConnectorNoTracking } from "../utils/orders";
-import { fetchProducts, enhanceOrders, since90DaysISO } from "../utils/loader";
+import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
 import Filters from "../components/Filters";
 
 import {
@@ -15,96 +15,40 @@ import { ExportIcon } from '@shopify/polaris-icons';
 import '@shopify/polaris/build/esm/styles.css';
 import enTranslations from '@shopify/polaris/locales/en.json';
 
+// GraphQL query for the orders page — includes customer name, financial status, tracking URL.
+// Defined at module level so it's not recreated on every request.
+const ORDERS_PAGE_QUERY = `#graphql
+  query getOrdersWithTracking($cursor: String, $query: String) {
+    orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor, query: $query) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id name createdAt
+          customer { firstName lastName }
+          displayFinancialStatus displayFulfillmentStatus
+          totalPriceSet { shopMoney { amount currencyCode } }
+          sourceName tags
+          shippingAddress { city province zip }
+          lineItems(first: 10) {
+            edges { node { title quantity product { id productType } } }
+          }
+          fulfillments { id status displayStatus trackingInfo { number url company } }
+        }
+      }
+    }
+  }`;
+
 export const loader = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
-  const storeProducts = await fetchProducts(admin);
+  const { admin, session } = await authenticate.admin(request);
   const sinceISO = since90DaysISO();
 
-  let allRawOrders = [];
-  let hasNextPage = true;
-  let cursor = null;
-  let pageCount = 0;
+  // Products and orders are independent — fetch both in parallel
+  const [storeProducts, rawOrders] = await Promise.all([
+    fetchProducts(admin, session.shop),
+    fetchAllOrdersPages(admin, ORDERS_PAGE_QUERY, sinceISO),
+  ]);
 
-  while (hasNextPage && pageCount < MAX_PAGES) {
-    pageCount++;
-    const response = await admin.graphql(
-      `#graphql
-      query getOrdersWithTracking($cursor: String, $query: String) {
-        orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor, query: $query) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              id
-              name
-              createdAt
-              customer {
-                firstName
-                lastName
-              }
-              displayFinancialStatus
-              displayFulfillmentStatus
-              totalPriceSet {
-                shopMoney {
-                  amount
-                  currencyCode
-                }
-              }
-              sourceName
-              tags
-              shippingAddress {
-                city
-                province
-                zip
-              }
-              lineItems(first: 10) {
-                edges {
-                  node {
-                    title
-                    quantity
-                    product {
-                      id
-                      productType
-                    }
-                  }
-                }
-              }
-              fulfillments {
-                id
-                status
-                displayStatus
-                trackingInfo {
-                  number
-                  url
-                  company
-                }
-              }
-            }
-          }
-        }
-      }`,
-      { variables: { cursor, query: `created_at:>=${sinceISO}` } }
-    );
-
-    const json = await response.json();
-
-    // Guard: if Shopify returns errors (e.g. missing scope), stop and return what we have
-    if (!json.data || !json.data.orders) {
-      const errMsg = (json.errors || []).map(e => e.message).join('; ') || 'Unknown error';
-      console.error('[Orders] Orders query error:', errMsg);
-      break;
-    }
-
-    const ordersPage = json.data.orders;
-
-    allRawOrders.push(...json.data.orders.edges.map(e => e.node));
-    hasNextPage = json.data.orders.pageInfo.hasNextPage;
-    cursor = json.data.orders.pageInfo.endCursor;
-  }
-
-  return { orders: enhanceOrders(allRawOrders), storeProducts };
+  return { orders: enhanceOrders(rawOrders), storeProducts };
 };
 
 export default function Orders() {

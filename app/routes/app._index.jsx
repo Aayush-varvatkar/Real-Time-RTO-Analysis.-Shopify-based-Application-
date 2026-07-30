@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getIsConnectorNoTracking } from "../utils/orders";
-import { fetchProducts, enhanceOrders, since90DaysISO } from "../utils/loader";
+import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
 import ProductRTO from "../components/ProductRTO";
 import RTOAnalysis from "../components/RTOAnalysis";
 import IndiaHeatMap from "../components/IndiaHeatMap";
@@ -24,63 +24,47 @@ import {
 import '@shopify/polaris/build/esm/styles.css';
 import enTranslations from '@shopify/polaris/locales/en.json';
 
-export const loader = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
-  const storeProducts = await fetchProducts(admin);
-  const sinceISO = since90DaysISO();
-
-  let allRawOrders = [];
-  let hasNextPage = true;
-  let cursor = null;
-  let page = 0;
-  const MAX_PAGES = 40;
-
-  while (hasNextPage && page < MAX_PAGES) {
-    page++;
-    const res = await admin.graphql(
-      `#graphql
-      query getOrdersWithTrackingForAnalytics($cursor: String, $query: String) {
-        orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor, query: $query) {
-          pageInfo { hasNextPage endCursor }
-          edges {
-            node {
-              id name createdAt displayFulfillmentStatus
-              totalPriceSet { shopMoney { amount } }
-              sourceName tags
-              shippingAddress { city province zip }
-              lineItems(first: 10) {
-                edges {
-                  node {
-                    title quantity
-                    originalUnitPriceSet { shopMoney { amount } }
-                    discountAllocations { allocatedAmountSet { shopMoney { amount } } }
-                    product { id productType }
-                  }
-                }
+// GraphQL query for the dashboard — includes pricing, discounts, connector fields.
+// Defined at module level so it's not recreated on every request.
+const DASHBOARD_ORDERS_QUERY = `#graphql
+  query getOrdersWithTrackingForAnalytics($cursor: String, $query: String) {
+    orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor, query: $query) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        node {
+          id name createdAt displayFulfillmentStatus
+          totalPriceSet { shopMoney { amount } }
+          sourceName tags
+          shippingAddress { city province zip }
+          lineItems(first: 10) {
+            edges {
+              node {
+                title quantity
+                originalUnitPriceSet { shopMoney { amount } }
+                discountAllocations { allocatedAmountSet { shopMoney { amount } } }
+                product { id productType }
               }
-              fulfillments { id status displayStatus trackingInfo { number company } }
-              customAttributes { key value }
-              returnStatus
             }
           }
+          fulfillments { id status displayStatus trackingInfo { number company } }
+          customAttributes { key value }
+          returnStatus
         }
-      }`,
-      { variables: { cursor, query: `created_at:>=${sinceISO}` } }
-    );
-
-    const json = await res.json();
-    if (!json.data?.orders) {
-      const errMsg = (json.errors || []).map(e => e.message).join('; ') || 'Unknown error';
-      console.error('[RTO-Predictor] Orders query error:', errMsg);
-      break;
+      }
     }
+  }`;
 
-    allRawOrders.push(...json.data.orders.edges.map(e => e.node));
-    hasNextPage = json.data.orders.pageInfo.hasNextPage;
-    cursor = json.data.orders.pageInfo.endCursor;
-  }
+export const loader = async ({ request }) => {
+  const { admin, session } = await authenticate.admin(request);
+  const sinceISO = since90DaysISO();
 
-  return { orders: enhanceOrders(allRawOrders), storeProducts };
+  // Products and orders are independent — fetch both in parallel
+  const [storeProducts, rawOrders] = await Promise.all([
+    fetchProducts(admin, session.shop),
+    fetchAllOrdersPages(admin, DASHBOARD_ORDERS_QUERY, sinceISO),
+  ]);
+
+  return { orders: enhanceOrders(rawOrders), storeProducts };
 };
 
 export default function Index() {
