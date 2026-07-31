@@ -1,8 +1,9 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { getIsConnectorNoTracking, filterOrders } from "../utils/orders";
+import { getIsConnectorNoTracking, filterOrders, normalizeDeliveryStatus } from "../utils/orders";
 import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
+import { checkAuthenticatedRateLimit } from "../utils/rateLimiter";
 import Filters from "../components/Filters";
 
 import {
@@ -89,6 +90,21 @@ export default function Orders() {
       failedLabel: "RTO"
     });
   }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter, courierFilter]);
+
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 100;
+
+  // Reset page to 0 when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter, courierFilter]);
+
+  const totalPages = Math.ceil(filteredOrders.length / PAGE_SIZE);
+  const activePage = Math.min(page, Math.max(0, totalPages - 1));
+
+  const paginatedOrders = useMemo(() => {
+    return filteredOrders.slice(activePage * PAGE_SIZE, (activePage + 1) * PAGE_SIZE);
+  }, [filteredOrders, activePage]);
 
   const handleExportCSV = useCallback(() => {
     const headers = ['Order', 'Order Date', 'Customer', 'Items', 'Tracking Status', 'Fulfillment Status', 'Amount (Rs.)', 'Payment Status', 'State', 'City', 'Pincode'];
@@ -213,10 +229,10 @@ export default function Orders() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredOrders.length === 0 ? (
+                    {paginatedOrders.length === 0 ? (
                       <tr><td colSpan="10" style={{ padding: "24px", textAlign: "center", color: "#6b7280" }}>No orders found matching filters</td></tr>
                     ) : (
-                      filteredOrders.map((order, index) => {
+                      paginatedOrders.map((order, index) => {
                         const customerName = order.customer
                           ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer"
                           : "No Customer";
@@ -268,6 +284,25 @@ export default function Orders() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination footer */}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid #f3f4f6', backgroundColor: '#fafafa' }}>
+                  <span style={{ fontSize: '13px', color: '#6b7280' }}>
+                    Showing {activePage * PAGE_SIZE + 1}–{Math.min((activePage + 1) * PAGE_SIZE, filteredOrders.length)} of {filteredOrders.length} orders
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={activePage === 0}
+                      style={{ fontSize: '13px', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', background: activePage === 0 ? '#f9fafb' : '#fff', color: activePage === 0 ? '#9ca3af' : '#374151', cursor: activePage === 0 ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                      ← Prev
+                    </button>
+                    <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={activePage >= totalPages - 1}
+                      style={{ fontSize: '13px', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', background: activePage >= totalPages - 1 ? '#f9fafb' : '#fff', color: activePage >= totalPages - 1 ? '#9ca3af' : '#374151', cursor: activePage >= totalPages - 1 ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </BlockStack>
         </Page>
