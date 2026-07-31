@@ -18,7 +18,8 @@ RUN npm install
 
 COPY . .
 
-# Run the build while we still have devDependencies
+# Generate Prisma client and run the build
+RUN npx prisma generate
 RUN npm run build
 
 # Set to production and remove dev dependencies
