@@ -4,10 +4,15 @@ import { Form, useActionData, useLoaderData } from "react-router";
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
 import { checkAuthRateLimit } from "../../utils/rateLimiter";
+import { validateShopDomain } from "../../utils/validation";
 
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop") || "";
+
+  const validationErr = validateShopDomain(shop);
+  if (validationErr) return validationErr;
+
   const rateLimitRes = checkAuthRateLimit(request, shop);
   if (rateLimitRes) return rateLimitRes;
 
@@ -25,6 +30,9 @@ export const action = async ({ request }) => {
   } catch (e) {
     // Fallback if not form data
   }
+
+  const validationErr = validateShopDomain(shop);
+  if (validationErr) return validationErr;
 
   const rateLimitRes = checkAuthRateLimit(request, shop);
   if (rateLimitRes) return rateLimitRes;

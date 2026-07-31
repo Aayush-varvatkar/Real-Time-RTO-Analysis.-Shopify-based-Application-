@@ -1,8 +1,12 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { checkPublicRateLimit } from "../utils/rateLimiter";
+import { validateWebhookHeaders } from "../utils/validation";
 
 export const action = async ({ request }) => {
+  const validationErr = validateWebhookHeaders(request);
+  if (validationErr) return validationErr;
+
   const rateLimitRes = checkPublicRateLimit(request);
   if (rateLimitRes) return rateLimitRes;
 
