@@ -3,14 +3,32 @@ import { useState } from "react";
 import { Form, useActionData, useLoaderData } from "react-router";
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
+import { checkAuthRateLimit } from "../../utils/rateLimiter";
 
 export const loader = async ({ request }) => {
+  const url = new URL(request.url);
+  const shop = url.searchParams.get("shop") || "";
+  const rateLimitRes = checkAuthRateLimit(request, shop);
+  if (rateLimitRes) return rateLimitRes;
+
   const errors = loginErrorMessage(await login(request));
 
   return { errors };
 };
 
 export const action = async ({ request }) => {
+  const clonedRequest = request.clone();
+  let shop = "";
+  try {
+    const formData = await clonedRequest.formData();
+    shop = formData.get("shop") || "";
+  } catch (e) {
+    // Fallback if not form data
+  }
+
+  const rateLimitRes = checkAuthRateLimit(request, shop);
+  if (rateLimitRes) return rateLimitRes;
+
   const errors = loginErrorMessage(await login(request));
 
   return {

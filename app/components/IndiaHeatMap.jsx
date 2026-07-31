@@ -111,52 +111,52 @@ export default function IndiaHeatMap({ statesData }) {
               Loading map…
             </div>
           ) : (
-          <svg
-            viewBox={indiaMapData.viewBox}
-            width="100%"
-            height="100%"
-            style={{
-              filter: 'drop-shadow(0px 8px 16px rgba(0,0,0,0.04))',
-              overflow: 'visible'
-            }}
-          >
-            {indiaMapData.locations.map(loc => {
-              const normName = normalizeStateName(loc.name);
-              const stateInfo = statsMap[normName] || { total: 0, rto: 0, delivered: 0, rtoPct: 0 };
-              const fill = getColorForRto(stateInfo.rtoPct, stateInfo.total);
-              const isHovered = hoveredState && hoveredState.id === loc.id;
+            <svg
+              viewBox={indiaMapData.viewBox}
+              width="100%"
+              height="100%"
+              style={{
+                filter: 'drop-shadow(0px 8px 16px rgba(0,0,0,0.04))',
+                overflow: 'visible'
+              }}
+            >
+              {indiaMapData.locations.map(loc => {
+                const normName = normalizeStateName(loc.name);
+                const stateInfo = statsMap[normName] || { total: 0, rto: 0, delivered: 0, rtoPct: 0 };
+                const fill = getColorForRto(stateInfo.rtoPct, stateInfo.total);
+                const isHovered = hoveredState && hoveredState.id === loc.id;
 
-              return (
-                <path
-                  key={loc.id}
-                  id={loc.id}
-                  d={loc.path}
-                  fill={fill}
-                  stroke={isHovered ? '#111827' : '#ffffff'}
-                  strokeWidth={isHovered ? 2.5 : 1.2}
-                  style={{
-                    cursor: 'pointer',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  }}
-                  onMouseMove={(e) => {
-                    setHoveredState({
-                      id: loc.id,
-                      name: loc.name,
-                      total: stateInfo.total,
-                      rto: stateInfo.rto,
-                      delivered: stateInfo.delivered,
-                      rtoPct: stateInfo.rtoPct,
-                      x: e.clientX,
-                      y: e.clientY
-                    });
-                  }}
-                  onMouseLeave={() => {
-                    setHoveredState(null);
-                  }}
-                />
-              );
-            })}
-          </svg>
+                return (
+                  <path
+                    key={loc.id}
+                    id={loc.id}
+                    d={loc.path}
+                    fill={fill}
+                    stroke={isHovered ? '#111827' : '#ffffff'}
+                    strokeWidth={isHovered ? 2.5 : 1.2}
+                    style={{
+                      cursor: 'pointer',
+                      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    }}
+                    onMouseMove={(e) => {
+                      setHoveredState({
+                        id: loc.id,
+                        name: loc.name,
+                        total: stateInfo.total,
+                        rto: stateInfo.rto,
+                        delivered: stateInfo.delivered,
+                        rtoPct: stateInfo.rtoPct,
+                        x: e.clientX,
+                        y: e.clientY
+                      });
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredState(null);
+                    }}
+                  />
+                );
+              })}
+            </svg>
           )}
         </div>
 

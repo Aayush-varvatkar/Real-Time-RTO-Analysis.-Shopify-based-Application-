@@ -1,7 +1,11 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { checkPublicRateLimit } from "../utils/rateLimiter";
 
 export const action = async ({ request }) => {
+  const rateLimitRes = checkPublicRateLimit(request);
+  if (rateLimitRes) return rateLimitRes;
+
   const { payload, session, topic, shop } = await authenticate.webhook(request);
 
   if (process.env.NODE_ENV !== 'production') {

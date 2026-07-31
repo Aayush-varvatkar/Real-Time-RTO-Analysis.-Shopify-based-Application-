@@ -40,6 +40,9 @@ const ORDERS_PAGE_QUERY = `#graphql
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
+  const rateLimitRes = checkAuthenticatedRateLimit(request, session.shop);
+  if (rateLimitRes) return rateLimitRes;
+
   const sinceISO = since90DaysISO();
 
   // Products and orders are independent — fetch both in parallel

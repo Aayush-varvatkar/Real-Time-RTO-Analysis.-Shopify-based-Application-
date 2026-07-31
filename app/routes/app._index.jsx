@@ -3,6 +3,7 @@ import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getIsConnectorNoTracking, filterOrders } from "../utils/orders";
 import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
+import { checkAuthenticatedRateLimit } from "../utils/rateLimiter";
 import ProductRTO from "../components/ProductRTO";
 import RTOAnalysis from "../components/RTOAnalysis";
 import IndiaHeatMap from "../components/IndiaHeatMap";
@@ -56,6 +57,9 @@ const DASHBOARD_ORDERS_QUERY = `#graphql
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
+  const rateLimitRes = checkAuthenticatedRateLimit(request, session.shop);
+  if (rateLimitRes) return rateLimitRes;
+
   const sinceISO = since90DaysISO();
 
   // Products and orders are independent — fetch both in parallel
