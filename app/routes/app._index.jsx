@@ -1,29 +1,27 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { useLoaderData } from "react-router";
+import { useState, useMemo, useRef, useEffect, Suspense, lazy } from "react";
+import { useLoaderData, Await, defer } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getIsConnectorNoTracking, filterOrders } from "../utils/orders";
 import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
 import { checkAuthenticatedRateLimit } from "../utils/rateLimiter";
-import ProductRTO from "../components/ProductRTO";
-import RTOAnalysis from "../components/RTOAnalysis";
-import IndiaHeatMap from "../components/IndiaHeatMap";
+import { SkeletonDashboard } from "../components/SkeletonDashboard";
 import Filters from "../components/Filters";
 import ConnectorStatusCard from "../components/ConnectorStatusCard";
-import RevenueCards from "../components/RevenueCards";
-import ProductRevenue from "../components/ProductRevenue";
 import OrderBarChart from "../components/OrderBarChart";
 import OrderHistoryChart from "../components/OrderHistoryChart";
 import TrackingStatusHistory from "../components/TrackingStatusHistory";
 import OrderCards from "../components/OrderCards";
-import { exportDashboardToPPT } from "../utils/exportPPT";
+import RevenueCards from "../components/RevenueCards";
+// Lazy-load heavy below-the-fold components (~245KB total savings from initial bundle)
+const ProductRTO = lazy(() => import("../components/ProductRTO"));
+const RTOAnalysis = lazy(() => import("../components/RTOAnalysis"));
+const IndiaHeatMap = lazy(() => import("../components/IndiaHeatMap"));
+const ProductRevenue = lazy(() => import("../components/ProductRevenue"));
 
 import {
-  AppProvider,
   Page,
   BlockStack,
 } from '@shopify/polaris';
-import '@shopify/polaris/build/esm/styles.css';
-import enTranslations from '@shopify/polaris/locales/en.json';
 
 // GraphQL query for the dashboard — includes pricing, discounts, connector fields.
 // Defined at module level so it's not recreated on every request.
@@ -61,23 +59,24 @@ export const loader = async ({ request }) => {
     const rateLimitRes = checkAuthenticatedRateLimit(request, session.shop);
     if (rateLimitRes) return rateLimitRes;
 
-    const sinceISO = since90DaysISO();
+    const sinceISO = since30DaysISO();
 
-    // Products and orders are independent — fetch both in parallel
-    const [storeProducts, rawOrders] = await Promise.all([
-      fetchProducts(admin, session.shop),
-      fetchAllOrdersPages(admin, DASHBOARD_ORDERS_QUERY, sinceISO),
-    ]);
+    // Fetch products immediately (fast, cached), defer orders (slow, paginated)
+    const storeProducts = await fetchProducts(admin, session.shop);
 
-    return { orders: enhanceOrders(rawOrders), storeProducts };
+    // Deferred: orders load in background while the page shell renders immediately
+    const ordersPromise = fetchAllOrdersPages(admin, DASHBOARD_ORDERS_QUERY, sinceISO, session.shop)
+      .then(raw => enhanceOrders(raw));
+
+    return defer({ ordersPromise, storeProducts });
   } catch (err) {
     console.error('[app._index loader Exception]:', err?.stack || err?.message || err);
-    return { orders: [], storeProducts: [] };
+    return defer({ ordersPromise: Promise.resolve([]), storeProducts: [] });
   }
 };
 
 export default function Index() {
-  const { orders = [], storeProducts = [] } = useLoaderData() || {};
+  const { ordersPromise, storeProducts = [] } = useLoaderData() || {};
   const [activeOrderCardTitle, setActiveOrderCardTitle] = useState(null);
   const orderChartRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -85,6 +84,7 @@ export default function Index() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
+      const { exportDashboardToPPT } = await import("../utils/exportPPT");
       await exportDashboardToPPT();
     } catch (err) {
       console.error("[Index] Failed to export PPT:", err);
@@ -102,8 +102,42 @@ export default function Index() {
     }
   }, [activeOrderCardTitle]);
 
+  return (
+      <div style={{ padding: "2rem" }}>
+        <Page
+          title="Dashboard"
+          fullWidth
+          primaryAction={{
+            content: "Export to PPT",
+            onAction: handleExport,
+            loading: isExporting,
+          }}
+        >
+          <BlockStack gap="400">
+            <Suspense fallback={<SkeletonDashboard />}>
+              <Await resolve={ordersPromise} errorElement={<div style={{ padding: '2rem', textAlign: 'center', color: '#d72c0d' }}>Failed to load order data. Please refresh.</div>}>
+                {(orders) => (
+                  <DashboardContent
+                    orders={orders || []}
+                    storeProducts={storeProducts}
+                    activeOrderCardTitle={activeOrderCardTitle}
+                    setActiveOrderCardTitle={setActiveOrderCardTitle}
+                    orderChartRef={orderChartRef}
+                  />
+                )}
+              </Await>
+            </Suspense>
+          </BlockStack>
+        </Page>
+      </div>
+  );
+}
 
-
+/**
+ * Inner component that receives resolved orders data.
+ * Separated so all order-dependent useMemo hooks live inside the Await boundary.
+ */
+function DashboardContent({ orders, storeProducts, activeOrderCardTitle, setActiveOrderCardTitle, orderChartRef }) {
   const [selectedDates, setSelectedDates] = useState(() => {
     const end = new Date();
     end.setHours(0, 0, 0, 0);
@@ -134,17 +168,14 @@ export default function Index() {
   }, [orders, selectedDates, productFilter, deliveryStatusFilter, stateFilter, cityFilter, pincodeFilter, courierFilter]);
 
   // Compute Metrics
-  // Each order falls into EXACTLY ONE bucket so all cards always sum to Total Orders:
-  //   Delivered | In-Transit | Failed | Dispatched-by-X (connector) | Unfulfilled (no tracking)
   const metrics = useMemo(() => {
-    let unfulfilled = 0; // orders with no delivery tracking and not a connector order
-    let shipped = 0;     // in_transit / out_for_delivery
-    let fulfilled = 0;   // delivered
-    let failed = 0;      // rto_failed
+    let unfulfilled = 0;
+    let shipped = 0;
+    let fulfilled = 0;
+    let failed = 0;
     const connectorCounts = {};
 
     filteredOrders.forEach(order => {
-      // Connector order with no resolved delivery status → its own bucket
       const isConnectorNoTracking = getIsConnectorNoTracking(order);
 
       if (isConnectorNoTracking) {
@@ -156,7 +187,6 @@ export default function Index() {
       } else if (order.orderDeliveryStatus === 'rto_failed') {
         failed++;
       } else {
-        // No tracking info at all — shown as "Unfulfilled"
         unfulfilled++;
       }
     });
@@ -181,7 +211,6 @@ export default function Index() {
     const endObj = new Date(selectedDates.end);
     endObj.setHours(23, 59, 59, 999);
 
-    // Generate all dates in range
     const current = new Date(startObj);
     while (current <= endObj) {
       const dateStr = `${String(current.getDate()).padStart(2, '0')}/${String(current.getMonth() + 1).padStart(2, '0')}/${String(current.getFullYear()).slice(-2)}`;
@@ -197,12 +226,9 @@ export default function Index() {
       current.setDate(current.getDate() + 1);
     }
 
-    // Populate data from orders
     filteredOrders.forEach(order => {
       const isConnectorNoTracking = getIsConnectorNoTracking(order);
-      if (isConnectorNoTracking) {
-        return; // Exclude from charts/graphs
-      }
+      if (isConnectorNoTracking) return;
 
       const orderDate = new Date(order.createdAt);
       const dateStr = `${String(orderDate.getDate()).padStart(2, '0')}/${String(orderDate.getMonth() + 1).padStart(2, '0')}/${String(orderDate.getFullYear()).slice(-2)}`;
@@ -210,7 +236,6 @@ export default function Index() {
       if (dataMap[dateStr]) {
         dataMap[dateStr]["Total Orders"]++;
 
-        // Fulfillment status checks
         const status = (order.displayFulfillmentStatus || '').toLowerCase();
         if (status === 'fulfilled') {
           dataMap[dateStr]["Fulfilled"]++;
@@ -218,7 +243,6 @@ export default function Index() {
           dataMap[dateStr]["Unfulfilled"]++;
         }
 
-        // Logistics delivery status checks
         const deliveryStatus = order.orderDeliveryStatus;
         if (deliveryStatus === 'delivered' || deliveryStatus === 'fulfilled') {
           dataMap[dateStr]["Delivered"]++;
@@ -241,9 +265,7 @@ export default function Index() {
 
     filteredOrders.forEach(order => {
       const isConnectorNoTracking = getIsConnectorNoTracking(order);
-      if (isConnectorNoTracking) {
-        return; // Exclude from charts/graphs
-      }
+      if (isConnectorNoTracking) return;
 
       const deliveryStatus = order.orderDeliveryStatus;
 
@@ -263,18 +285,15 @@ export default function Index() {
     ].filter(d => d.value > 0);
   }, [filteredOrders]);
 
-  // Memoized pie total — stable reference prevents Tooltip from remounting on every hover
   const pieTotal = useMemo(() => trackingStatusData.reduce((sum, item) => sum + item.value, 0), [trackingStatusData]);
 
-  // ── RTO Analysis (date + product filters already applied via filteredOrders) ──
+  // ── RTO Analysis ──
   const rtoAnalysis = useMemo(() => {
     const groupBy = (keyFn) => {
       const map = {};
       filteredOrders.forEach(order => {
         const isConnectorNoTracking = getIsConnectorNoTracking(order);
-        if (isConnectorNoTracking) {
-          return; // Exclude from charts/graphs
-        }
+        if (isConnectorNoTracking) return;
 
         const key = keyFn(order);
         if (!key) return;
@@ -300,12 +319,11 @@ export default function Index() {
         .sort((a, b) => b.rtoPct - a.rtoPct || b.rto - a.rto);
     };
 
-    // ── Product groupBy (RTO stats) + Revenue — single pass ──
     const productMap = {};
     filteredOrders.forEach(order => {
       const isConnectorNoTracking = getIsConnectorNoTracking(order);
       const isConnector = !!order.connectorName;
-      if (isConnectorNoTracking && isConnector) return; // skip if excluded from both
+      if (isConnectorNoTracking && isConnector) return;
 
       (order.lineItems?.edges || []).forEach(e => {
         const productTitle = e.node?.title;
@@ -320,7 +338,6 @@ export default function Index() {
         }
         const p = productMap[productTitle];
 
-        // RTO/delivery stats (exclude connector-no-tracking)
         if (!isConnectorNoTracking) {
           p.total += qty;
           if (status === 'rto_failed') p.rto += qty;
@@ -329,7 +346,6 @@ export default function Index() {
           else p.unfulfilled += qty;
         }
 
-        // Revenue (exclude all connector orders)
         if (!isConnector) {
           const unitPrice = Number(e.node.originalUnitPriceSet?.shopMoney?.amount || 0);
           const discount = (e.node.discountAllocations || []).reduce((s, da) => s + Number(da.allocatedAmountSet?.shopMoney?.amount || 0), 0);
@@ -362,129 +378,105 @@ export default function Index() {
     };
   }, [filteredOrders, productFilter]);
 
-
-
   const styles = {
     cardTitleOuter: { borderBottom: "1px dotted #9ca3af", display: "inline-block", alignSelf: "flex-start", paddingBottom: "6px", marginBottom: "20px" },
     cardTitle: { fontSize: "15px", fontWeight: "500", color: "#111827", margin: 0 },
     section: { backgroundColor: "#fff", borderRadius: "12px", padding: "24px", boxShadow: "0 2px 4px rgba(0,0,0,0.04)", border: "1px solid #f0f0f0" },
   };
 
-
-
   return (
-    <AppProvider i18n={enTranslations}>
-      <div style={{ padding: "2rem" }}>
-        <Page
-          title="Dashboard"
-          fullWidth
-          primaryAction={{
-            content: "Export to PPT",
-            onAction: handleExport,
-            loading: isExporting,
-          }}
-        >
-          <BlockStack gap="400">
-            <Filters
-              orders={orders}
-              storeProducts={storeProducts}
-              selectedDates={selectedDates}
-              setSelectedDates={setSelectedDates}
-              productFilter={productFilter}
-              setProductFilter={setProductFilter}
-              deliveryStatusFilter={deliveryStatusFilter}
-              setDeliveryStatusFilter={setDeliveryStatusFilter}
-              stateFilter={stateFilter}
-              setStateFilter={setStateFilter}
-              cityFilter={cityFilter}
-              setCityFilter={setCityFilter}
-              pincodeFilter={pincodeFilter}
-              setPincodeFilter={setPincodeFilter}
-              courierFilter={courierFilter}
-              setCourierFilter={setCourierFilter}
+    <>
+      <Filters
+        orders={orders}
+        storeProducts={storeProducts}
+        selectedDates={selectedDates}
+        setSelectedDates={setSelectedDates}
+        productFilter={productFilter}
+        setProductFilter={setProductFilter}
+        deliveryStatusFilter={deliveryStatusFilter}
+        setDeliveryStatusFilter={setDeliveryStatusFilter}
+        stateFilter={stateFilter}
+        setStateFilter={setStateFilter}
+        cityFilter={cityFilter}
+        setCityFilter={setCityFilter}
+        pincodeFilter={pincodeFilter}
+        setPincodeFilter={setPincodeFilter}
+        courierFilter={courierFilter}
+        setCourierFilter={setCourierFilter}
+      />
+
+      {/* ── Key Metrics & Revenue Overview ── */}
+      <div id="dashboard-overview" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <OrderCards metrics={metrics} activeOrderCardTitle={activeOrderCardTitle} setActiveOrderCardTitle={setActiveOrderCardTitle} />
+
+        {activeOrderCardTitle && (
+          <div ref={orderChartRef}>
+            <OrderBarChart
+              activeCard={activeOrderCardTitle}
+              products={rtoAnalysis.products}
+              onClose={() => setActiveOrderCardTitle(null)}
             />
+          </div>
+        )}
 
-            {/* ── Key Metrics & Revenue Overview ── */}
-            <div id="dashboard-overview" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <OrderCards metrics={metrics} activeOrderCardTitle={activeOrderCardTitle} setActiveOrderCardTitle={setActiveOrderCardTitle} />
-
-              {activeOrderCardTitle && (
-                <div ref={orderChartRef}>
-                  <OrderBarChart
-                    activeCard={activeOrderCardTitle}
-                    products={rtoAnalysis.products}
-                    onClose={() => setActiveOrderCardTitle(null)}
-                  />
-                </div>
-              )}
-
-              <RevenueCards orders={filteredOrders} productFilter={productFilter} productRevenues={rtoAnalysis.productRevenues} />
-            </div>
-
-            {/* ── Order History Chart ── */}
-            <div id="dashboard-history">
-              <OrderHistoryChart chartData={chartData} />
-            </div>
-
-            {/* ── Tracking status & Connector Orders ── */}
-            <div id="dashboard-tracking" style={styles.section}>
-              <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
-
-                {/* ── Left: Shopify Tracking-Status History ── */}
-                <div style={{ flex: '1 1 380px', minWidth: '320px' }}>
-                  <TrackingStatusHistory trackingStatusData={trackingStatusData} pieTotal={pieTotal} />
-                </div>
-
-                {/* ── Divider ── */}
-                <div style={{ width: '1px', backgroundColor: '#e5e7eb', flexShrink: 0 }} />
-
-                {/* ── Right: Connector Orders – Delivery Status ── */}
-                <div style={{ flex: '1 1 380px', minWidth: '320px' }}>
-                  <div style={styles.cardTitleOuter}>
-                    <h3 style={styles.cardTitle}>Connector Orders – Delivery Status</h3>
-                  </div>
-                  <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af' }}>
-                    Based on Latest Delivery Date from order details (Amazon / other platform)
-                  </div>
-                  <ConnectorStatusCard orders={filteredOrders} />
-                </div>
-
-              </div>
-            </div>
-
-            {/* ── Product RTO Card ── */}
-            <div id="dashboard-product-rto" style={{ marginTop: '8px' }}>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px', letterSpacing: '-0.3px' }}>Product RTO</div>
-              <ProductRTO data={rtoAnalysis.products} />
-            </div>
-
-            {/* ── Product Revenue Card ── */}
-            <div id="dashboard-product-revenue" style={{ marginTop: '8px' }}>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px', letterSpacing: '-0.3px' }}>Product Revenue</div>
-              <ProductRevenue data={rtoAnalysis.productRevenues} />
-            </div>
-
-            {/* ── RTO Analysis Cards ── */}
-            <div id="dashboard-rto-breakdown" style={{ marginTop: '8px' }}>
-              <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '20px', letterSpacing: '-0.3px' }}>RTO Analysis</div>
-
-              {/* 2-column grid — align-items:start keeps cards independent heights */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', alignItems: 'start' }}>
-                <RTOAnalysis title="🚚 Top RTO Couriers" label="Courier" data={rtoAnalysis.couriers} showInTransit />
-                <RTOAnalysis title="🏙️ Top RTO States" label="State" data={rtoAnalysis.states} />
-                <RTOAnalysis title="🌆 Top RTO Cities" label="City" data={rtoAnalysis.cities} />
-                <RTOAnalysis title="📮 Top RTO Pincodes" label="Pincode" data={rtoAnalysis.pincodes} />
-              </div>
-            </div>
-
-            {/* ── India Heat Map ── */}
-            <div id="dashboard-india-map">
-              <IndiaHeatMap statesData={rtoAnalysis.states} />
-            </div>
-
-          </BlockStack>
-        </Page>
+        <RevenueCards orders={filteredOrders} productFilter={productFilter} productRevenues={rtoAnalysis.productRevenues} />
       </div>
-    </AppProvider>
+
+      {/* ── Order History Chart ── */}
+      <div id="dashboard-history">
+        <OrderHistoryChart chartData={chartData} />
+      </div>
+
+      {/* ── Tracking status & Connector Orders ── */}
+      <div id="dashboard-tracking" style={styles.section}>
+        <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 380px', minWidth: '320px' }}>
+            <TrackingStatusHistory trackingStatusData={trackingStatusData} pieTotal={pieTotal} />
+          </div>
+          <div style={{ width: '1px', backgroundColor: '#e5e7eb', flexShrink: 0 }} />
+          <div style={{ flex: '1 1 380px', minWidth: '320px' }}>
+            <div style={styles.cardTitleOuter}>
+              <h3 style={styles.cardTitle}>Connector Orders – Delivery Status</h3>
+            </div>
+            <div style={{ marginBottom: '6px', fontSize: '11px', color: '#9ca3af' }}>
+              Based on Latest Delivery Date from order details (Amazon / other platform)
+            </div>
+            <ConnectorStatusCard orders={filteredOrders} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Lazy-loaded below-the-fold sections ── */}
+      <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af' }}>Loading analytics...</div>}>
+        {/* ── Product RTO Card ── */}
+        <div id="dashboard-product-rto" style={{ marginTop: '8px' }}>
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px', letterSpacing: '-0.3px' }}>Product RTO</div>
+          <ProductRTO data={rtoAnalysis.products} />
+        </div>
+
+        {/* ── Product Revenue Card ── */}
+        <div id="dashboard-product-revenue" style={{ marginTop: '8px' }}>
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px', letterSpacing: '-0.3px' }}>Product Revenue</div>
+          <ProductRevenue data={rtoAnalysis.productRevenues} />
+        </div>
+
+        {/* ── RTO Analysis Cards ── */}
+        <div id="dashboard-rto-breakdown" style={{ marginTop: '8px' }}>
+          <div style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '20px', letterSpacing: '-0.3px' }}>RTO Analysis</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', alignItems: 'start' }}>
+            <RTOAnalysis title="🚚 Top RTO Couriers" label="Courier" data={rtoAnalysis.couriers} showInTransit />
+            <RTOAnalysis title="🏙️ Top RTO States" label="State" data={rtoAnalysis.states} />
+            <RTOAnalysis title="🌆 Top RTO Cities" label="City" data={rtoAnalysis.cities} />
+            <RTOAnalysis title="📮 Top RTO Pincodes" label="Pincode" data={rtoAnalysis.pincodes} />
+          </div>
+        </div>
+
+        {/* ── India Heat Map ── */}
+        <div id="dashboard-india-map">
+          <IndiaHeatMap statesData={rtoAnalysis.states} />
+        </div>
+      </Suspense>
+    </>
   );
 }
+

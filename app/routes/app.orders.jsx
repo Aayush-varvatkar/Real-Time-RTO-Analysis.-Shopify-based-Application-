@@ -1,23 +1,20 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useLoaderData } from "react-router";
+import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
+import { useLoaderData, Await, defer } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getIsConnectorNoTracking, filterOrders, normalizeDeliveryStatus } from "../utils/orders";
-import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
+import { fetchProducts, enhanceOrders, since30DaysISO, fetchAllOrdersPages } from "../utils/loader";
 import { checkAuthenticatedRateLimit } from "../utils/rateLimiter";
+import { SkeletonOrdersTable } from "../components/SkeletonDashboard";
 import Filters from "../components/Filters";
 
 import {
-  AppProvider,
   Page,
   BlockStack,
   Button,
 } from '@shopify/polaris';
 import { ExportIcon } from '@shopify/polaris-icons';
-import '@shopify/polaris/build/esm/styles.css';
-import enTranslations from '@shopify/polaris/locales/en.json';
 
 // GraphQL query for the orders page — includes customer name, financial status, tracking URL.
-// Defined at module level so it's not recreated on every request.
 const ORDERS_PAGE_QUERY = `#graphql
   query getOrdersWithTracking($cursor: String, $query: String) {
     orders(first: 250, sortKey: CREATED_AT, reverse: true, after: $cursor, query: $query) {
@@ -30,7 +27,7 @@ const ORDERS_PAGE_QUERY = `#graphql
           totalPriceSet { shopMoney { amount currencyCode } }
           sourceName tags
           shippingAddress { city province zip }
-          lineItems(first: 10) {
+          lineItems(first: 5) {
             edges { node { title quantity product { id productType } } }
           }
           fulfillments { id status displayStatus trackingInfo { number url company } }
@@ -45,24 +42,40 @@ export const loader = async ({ request }) => {
     const rateLimitRes = checkAuthenticatedRateLimit(request, session.shop);
     if (rateLimitRes) return rateLimitRes;
 
-    const sinceISO = since90DaysISO();
+    const sinceISO = since30DaysISO();
+    const storeProducts = await fetchProducts(admin, session.shop);
 
-    // Products and orders are independent — fetch both in parallel
-    const [storeProducts, rawOrders] = await Promise.all([
-      fetchProducts(admin, session.shop),
-      fetchAllOrdersPages(admin, ORDERS_PAGE_QUERY, sinceISO),
-    ]);
+    const ordersPromise = fetchAllOrdersPages(admin, ORDERS_PAGE_QUERY, sinceISO, session.shop)
+      .then(raw => enhanceOrders(raw));
 
-    return { orders: enhanceOrders(rawOrders), storeProducts };
+    return defer({ ordersPromise, storeProducts });
   } catch (err) {
     console.error('[app.orders loader Exception]:', err?.stack || err?.message || err);
-    return { orders: [], storeProducts: [] };
+    return defer({ ordersPromise: Promise.resolve([]), storeProducts: [] });
   }
 };
 
 export default function Orders() {
-  const { orders = [], storeProducts = [] } = useLoaderData() || {};
+  const { ordersPromise, storeProducts = [] } = useLoaderData() || {};
 
+  return (
+    <div style={{ padding: "2rem" }}>
+      <Page title="Orders" fullWidth>
+        <BlockStack gap="400">
+          <Suspense fallback={<SkeletonOrdersTable />}>
+            <Await resolve={ordersPromise} errorElement={<div style={{ padding: '2rem', textAlign: 'center', color: '#d72c0d' }}>Failed to load orders. Please refresh.</div>}>
+              {(orders) => (
+                <OrdersContent orders={orders || []} storeProducts={storeProducts} />
+              )}
+            </Await>
+          </Suspense>
+        </BlockStack>
+      </Page>
+    </div>
+  );
+}
+
+function OrdersContent({ orders, storeProducts }) {
   const [selectedDates, setSelectedDates] = useState(() => {
     const end = new Date();
     end.setHours(0, 0, 0, 0);
@@ -150,7 +163,6 @@ export default function Orders() {
     URL.revokeObjectURL(url);
   }, [filteredOrders]);
 
-
   const getStatusBadge = (status) => {
     let bgColor = "#f3f4f6", textColor = "#374151";
     let text = status.replace(/_/g, " ");
@@ -175,138 +187,135 @@ export default function Orders() {
   };
 
   return (
-    <AppProvider i18n={enTranslations}>
-      <div style={{ padding: "2rem" }}>
-        <Page title="Orders" fullWidth primaryAction={<Button icon={ExportIcon} variant="primary" onClick={handleExportCSV} disabled={filteredOrders.length === 0}>Export CSV ({filteredOrders.length})</Button>}>
-          <BlockStack gap="400">
-            <Filters
-              orders={orders}
-              storeProducts={storeProducts}
-              selectedDates={selectedDates}
-              setSelectedDates={setSelectedDates}
-              productFilter={productFilter}
-              setProductFilter={setProductFilter}
-              deliveryStatusFilter={deliveryStatusFilter}
-              setDeliveryStatusFilter={setDeliveryStatusFilter}
-              stateFilter={stateFilter}
-              setStateFilter={setStateFilter}
-              cityFilter={cityFilter}
-              setCityFilter={setCityFilter}
-              pincodeFilter={pincodeFilter}
-              setPincodeFilter={setPincodeFilter}
-              courierFilter={courierFilter}
-              setCourierFilter={setCourierFilter}
-              variant="orders"
-            />
-
-            <div style={{ backgroundColor: "#fff", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: "16px" }}>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", minWidth: "1280px", borderCollapse: "collapse", textAlign: "left", tableLayout: "fixed" }}>
-                  <colgroup>
-                    <col style={{ width: "100px" }} />
-                    <col style={{ width: "120px" }} />
-                    <col style={{ width: "150px" }} />
-                    <col style={{ width: "250px" }} />
-                    <col style={{ width: "190px" }} />
-                    <col style={{ width: "120px" }} />
-                    <col style={{ width: "130px" }} />
-                    <col style={{ width: "110px" }} />
-                    <col style={{ width: "120px" }} />
-                    <col style={{ width: "90px" }} />
-                  </colgroup>
-                  <thead style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                    <tr>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Order</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Order Date</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Customer</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Item</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Tracking Status</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Fulfillment</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151", textAlign: "center" }}>Payment ( Rs. )</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>State</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>City</th>
-                      <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Pincode</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedOrders.length === 0 ? (
-                      <tr><td colSpan="10" style={{ padding: "24px", textAlign: "center", color: "#6b7280" }}>No orders found matching filters</td></tr>
-                    ) : (
-                      paginatedOrders.map((order, index) => {
-                        const customerName = order.customer
-                          ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer"
-                          : "No Customer";
-
-                        let trackingStatus = "N/A";
-                        const isConnectorNoTracking = getIsConnectorNoTracking(order);
-                        if (isConnectorNoTracking) {
-                          trackingStatus = `dispatched_by_${order.connectorName.toLowerCase()}`;
-                        } else if (order.fulfillments && order.fulfillments.length > 0) {
-                          const f = order.fulfillments[0];
-                          if (f.trackingInfo && f.trackingInfo.length > 0) {
-                            trackingStatus = f.trackingInfo[0].courierDeliveryStatus || "in_transit";
-                          } else {
-                            trackingStatus = normalizeDeliveryStatus(f.displayStatus || f.status);
-                          }
-                        }
-
-                        const orderDate = new Date(order.createdAt).toLocaleDateString('en-GB', {
-                          day: 'numeric', month: 'short', year: 'numeric',
-                        });
-
-                        return (
-                          <tr key={order.id} style={{ borderBottom: "1px solid #f3f4f6", backgroundColor: index % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
-                            <td style={{ padding: "16px", fontSize: "14px", color: "#111827", fontWeight: "500", whiteSpace: "nowrap" }}>{order.name}</td>
-                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563", whiteSpace: "nowrap" }}>{orderDate}</td>
-                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{customerName}</td>
-                            <td style={{ padding: "16px", fontSize: "13px", color: "#4b5563" }}>
-                              {order.lineItems?.edges?.map((edge, idx) => (
-                                <div key={idx} style={{ marginBottom: "4px" }}>
-                                  {edge.node.title} <strong>x {edge.node.quantity}</strong>
-                                </div>
-                              ))}
-                            </td>
-                            <td style={{ padding: "16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
-                            <td style={{ padding: "16px" }}>{getFulfillmentBadge(order.displayFulfillmentStatus)}</td>
-                            <td style={{ padding: "16px", textAlign: "center" }}>
-                              <div style={{ marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "#111827" }}>
-                                {order.totalPriceSet?.shopMoney?.amount || '0.00'}
-                              </div>
-                              {getPaymentBadge(order.displayFinancialStatus)}
-                            </td>
-                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingState || '-'}</td>
-                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingCity || '-'}</td>
-                            <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingPincode || '-'}</td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination footer */}
-              {totalPages > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid #f3f4f6', backgroundColor: '#fafafa' }}>
-                  <span style={{ fontSize: '13px', color: '#6b7280' }}>
-                    Showing {activePage * PAGE_SIZE + 1}–{Math.min((activePage + 1) * PAGE_SIZE, filteredOrders.length)} of {filteredOrders.length} orders
-                  </span>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={activePage === 0}
-                      style={{ fontSize: '13px', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', background: activePage === 0 ? '#f9fafb' : '#fff', color: activePage === 0 ? '#9ca3af' : '#374151', cursor: activePage === 0 ? 'default' : 'pointer', transition: 'all 0.15s' }}>
-                      ← Prev
-                    </button>
-                    <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={activePage >= totalPages - 1}
-                      style={{ fontSize: '13px', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', background: activePage >= totalPages - 1 ? '#f9fafb' : '#fff', color: activePage >= totalPages - 1 ? '#9ca3af' : '#374151', cursor: activePage >= totalPages - 1 ? 'default' : 'pointer', transition: 'all 0.15s' }}>
-                      Next →
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </BlockStack>
-        </Page>
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+        <Button icon={ExportIcon} variant="primary" onClick={handleExportCSV} disabled={filteredOrders.length === 0}>Export CSV ({filteredOrders.length})</Button>
       </div>
-    </AppProvider>
+      <Filters
+        orders={orders}
+        storeProducts={storeProducts}
+        selectedDates={selectedDates}
+        setSelectedDates={setSelectedDates}
+        productFilter={productFilter}
+        setProductFilter={setProductFilter}
+        deliveryStatusFilter={deliveryStatusFilter}
+        setDeliveryStatusFilter={setDeliveryStatusFilter}
+        stateFilter={stateFilter}
+        setStateFilter={setStateFilter}
+        cityFilter={cityFilter}
+        setCityFilter={setCityFilter}
+        pincodeFilter={pincodeFilter}
+        setPincodeFilter={setPincodeFilter}
+        courierFilter={courierFilter}
+        setCourierFilter={setCourierFilter}
+        variant="orders"
+      />
+
+      <div style={{ backgroundColor: "#fff", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: "16px" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: "1280px", borderCollapse: "collapse", textAlign: "left", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "100px" }} />
+              <col style={{ width: "120px" }} />
+              <col style={{ width: "150px" }} />
+              <col style={{ width: "250px" }} />
+              <col style={{ width: "190px" }} />
+              <col style={{ width: "120px" }} />
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "110px" }} />
+              <col style={{ width: "120px" }} />
+              <col style={{ width: "90px" }} />
+            </colgroup>
+            <thead style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+              <tr>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Order</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Order Date</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Customer</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Item</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Tracking Status</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Fulfillment</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151", textAlign: "center" }}>Payment ( Rs. )</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>State</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>City</th>
+                <th style={{ padding: "16px", fontSize: "14px", fontWeight: "600", color: "#374151" }}>Pincode</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedOrders.length === 0 ? (
+                <tr><td colSpan="10" style={{ padding: "24px", textAlign: "center", color: "#6b7280" }}>No orders found matching filters</td></tr>
+              ) : (
+                paginatedOrders.map((order, index) => {
+                  const customerName = order.customer
+                    ? `${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() || "No Customer"
+                    : "No Customer";
+
+                  let trackingStatus = "N/A";
+                  const isConnectorNoTracking = getIsConnectorNoTracking(order);
+                  if (isConnectorNoTracking) {
+                    trackingStatus = `dispatched_by_${order.connectorName.toLowerCase()}`;
+                  } else if (order.fulfillments && order.fulfillments.length > 0) {
+                    const f = order.fulfillments[0];
+                    if (f.trackingInfo && f.trackingInfo.length > 0) {
+                      trackingStatus = f.trackingInfo[0].courierDeliveryStatus || "in_transit";
+                    } else {
+                      trackingStatus = normalizeDeliveryStatus(f.displayStatus || f.status);
+                    }
+                  }
+
+                  const orderDate = new Date(order.createdAt).toLocaleDateString('en-GB', {
+                    day: 'numeric', month: 'short', year: 'numeric',
+                  });
+
+                  return (
+                    <tr key={order.id} style={{ borderBottom: "1px solid #f3f4f6", backgroundColor: index % 2 === 0 ? "#ffffff" : "#f9fafb" }}>
+                      <td style={{ padding: "16px", fontSize: "14px", color: "#111827", fontWeight: "500", whiteSpace: "nowrap" }}>{order.name}</td>
+                      <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563", whiteSpace: "nowrap" }}>{orderDate}</td>
+                      <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{customerName}</td>
+                      <td style={{ padding: "16px", fontSize: "13px", color: "#4b5563" }}>
+                        {order.lineItems?.edges?.map((edge, idx) => (
+                          <div key={idx} style={{ marginBottom: "4px" }}>
+                            {edge.node.title} <strong>x {edge.node.quantity}</strong>
+                          </div>
+                        ))}
+                      </td>
+                      <td style={{ padding: "16px" }}>{trackingStatus !== "N/A" ? getStatusBadge(trackingStatus) : <span style={{ color: "#9ca3af", fontSize: "14px" }}>-</span>}</td>
+                      <td style={{ padding: "16px" }}>{getFulfillmentBadge(order.displayFulfillmentStatus)}</td>
+                      <td style={{ padding: "16px", textAlign: "center" }}>
+                        <div style={{ marginBottom: "6px", fontSize: "14px", fontWeight: "500", color: "#111827" }}>
+                          {order.totalPriceSet?.shopMoney?.amount || '0.00'}
+                        </div>
+                        {getPaymentBadge(order.displayFinancialStatus)}
+                      </td>
+                      <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingState || '-'}</td>
+                      <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingCity || '-'}</td>
+                      <td style={{ padding: "16px", fontSize: "14px", color: "#4b5563" }}>{order.shippingPincode || '-'}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination footer */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid #f3f4f6', backgroundColor: '#fafafa' }}>
+            <span style={{ fontSize: '13px', color: '#6b7280' }}>
+              Showing {activePage * PAGE_SIZE + 1}–{Math.min((activePage + 1) * PAGE_SIZE, filteredOrders.length)} of {filteredOrders.length} orders
+            </span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={activePage === 0}
+                style={{ fontSize: '13px', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', background: activePage === 0 ? '#f9fafb' : '#fff', color: activePage === 0 ? '#9ca3af' : '#374151', cursor: activePage === 0 ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                ← Prev
+              </button>
+              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={activePage >= totalPages - 1}
+                style={{ fontSize: '13px', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', background: activePage >= totalPages - 1 ? '#f9fafb' : '#fff', color: activePage >= totalPages - 1 ? '#9ca3af' : '#374151', cursor: activePage >= totalPages - 1 ? 'default' : 'pointer', transition: 'all 0.15s' }}>
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
