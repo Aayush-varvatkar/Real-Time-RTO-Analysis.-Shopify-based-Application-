@@ -14,35 +14,44 @@ const PRODUCT_TTL_MS = 5 * 60 * 1000; // 5 minutes
  * and the filter dropdowns tolerate a short lag.
  */
 export async function fetchProducts(admin, shop) {
-  const cached = shop && _productCache.get(shop);
-  if (cached && cached.expiresAt > Date.now()) return cached.titles;
+  try {
+    const cached = shop && _productCache.get(shop);
+    if (cached && cached.expiresAt > Date.now()) return cached.titles;
 
-  let allTitles = [];
-  let hasNextPage = true;
-  let cursor = null;
-  let page = 0;
+    let allTitles = [];
+    let hasNextPage = true;
+    let cursor = null;
+    let page = 0;
 
-  while (hasNextPage && page < MAX_PRODUCT_PAGES) {
-    page++;
-    const res = await admin.graphql(
-      `#graphql
-      query getProducts($cursor: String) {
-        products(first: 250, after: $cursor, query: "status:active") {
-          pageInfo { hasNextPage endCursor }
-          edges { node { title } }
-        }
-      }`,
-      { variables: { cursor } }
-    );
-    const { products } = (await res.json()).data;
-    allTitles.push(...products.edges.map(e => e.node.title));
-    hasNextPage = products.pageInfo.hasNextPage;
-    cursor = products.pageInfo.endCursor;
+    while (hasNextPage && page < MAX_PRODUCT_PAGES) {
+      page++;
+      const res = await admin.graphql(
+        `#graphql
+        query getProducts($cursor: String) {
+          products(first: 250, after: $cursor, query: "status:active") {
+            pageInfo { hasNextPage endCursor }
+            edges { node { title } }
+          }
+        }`,
+        { variables: { cursor } }
+      );
+      const json = await res.json();
+      if (!json.data?.products) {
+        console.error('[loader fetchProducts Error]:', (json.errors || []).map(e => e.message).join('; ') || 'Invalid response');
+        break;
+      }
+      allTitles.push(...json.data.products.edges.map(e => e.node.title));
+      hasNextPage = json.data.products.pageInfo.hasNextPage;
+      cursor = json.data.products.pageInfo.endCursor;
+    }
+
+    const titles = [...new Set(allTitles)].sort();
+    if (shop) _productCache.set(shop, { titles, expiresAt: Date.now() + PRODUCT_TTL_MS });
+    return titles;
+  } catch (err) {
+    console.error('[loader fetchProducts Exception]:', err?.stack || err?.message || err);
+    return [];
   }
-
-  const titles = [...new Set(allTitles)].sort();
-  if (shop) _productCache.set(shop, { titles, expiresAt: Date.now() + PRODUCT_TTL_MS });
-  return titles;
 }
 
 /**
@@ -51,27 +60,32 @@ export async function fetchProducts(admin, shop) {
  * Designed to be called via Promise.all alongside fetchProducts.
  */
 export async function fetchAllOrdersPages(admin, gqlQuery, sinceISO) {
-  let all = [];
-  let hasNextPage = true;
-  let cursor = null;
-  let page = 0;
+  try {
+    let all = [];
+    let hasNextPage = true;
+    let cursor = null;
+    let page = 0;
 
-  while (hasNextPage && page < MAX_ORDER_PAGES) {
-    page++;
-    const res = await admin.graphql(gqlQuery, {
-      variables: { cursor, query: `created_at:>=${sinceISO}` }
-    });
-    const json = await res.json();
-    if (!json.data?.orders) {
-      console.error('[loader] Orders query error:', (json.errors || []).map(e => e.message).join('; ') || 'Unknown');
-      break;
+    while (hasNextPage && page < MAX_ORDER_PAGES) {
+      page++;
+      const res = await admin.graphql(gqlQuery, {
+        variables: { cursor, query: `created_at:>=${sinceISO}` }
+      });
+      const json = await res.json();
+      if (!json.data?.orders) {
+        console.error('[loader fetchAllOrdersPages Error]:', (json.errors || []).map(e => e.message).join('; ') || 'Unknown');
+        break;
+      }
+      all.push(...json.data.orders.edges.map(e => e.node));
+      hasNextPage = json.data.orders.pageInfo.hasNextPage;
+      cursor = json.data.orders.pageInfo.endCursor;
     }
-    all.push(...json.data.orders.edges.map(e => e.node));
-    hasNextPage = json.data.orders.pageInfo.hasNextPage;
-    cursor = json.data.orders.pageInfo.endCursor;
-  }
 
-  return all;
+    return all;
+  } catch (err) {
+    console.error('[loader fetchAllOrdersPages Exception]:', err?.stack || err?.message || err);
+    return [];
+  }
 }
 
 /**

@@ -56,19 +56,24 @@ const DASHBOARD_ORDERS_QUERY = `#graphql
   }`;
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
-  const rateLimitRes = checkAuthenticatedRateLimit(request, session.shop);
-  if (rateLimitRes) return rateLimitRes;
+  try {
+    const { admin, session } = await authenticate.admin(request);
+    const rateLimitRes = checkAuthenticatedRateLimit(request, session.shop);
+    if (rateLimitRes) return rateLimitRes;
 
-  const sinceISO = since90DaysISO();
+    const sinceISO = since90DaysISO();
 
-  // Products and orders are independent — fetch both in parallel
-  const [storeProducts, rawOrders] = await Promise.all([
-    fetchProducts(admin, session.shop),
-    fetchAllOrdersPages(admin, DASHBOARD_ORDERS_QUERY, sinceISO),
-  ]);
+    // Products and orders are independent — fetch both in parallel
+    const [storeProducts, rawOrders] = await Promise.all([
+      fetchProducts(admin, session.shop),
+      fetchAllOrdersPages(admin, DASHBOARD_ORDERS_QUERY, sinceISO),
+    ]);
 
-  return { orders: enhanceOrders(rawOrders), storeProducts };
+    return { orders: enhanceOrders(rawOrders), storeProducts };
+  } catch (err) {
+    console.error('[app._index loader Exception]:', err?.stack || err?.message || err);
+    return { orders: [], storeProducts: [] };
+  }
 };
 
 export default function Index() {
