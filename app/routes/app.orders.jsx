@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
-import { useLoaderData, Await, defer } from "react-router";
+import { useLoaderData, Await } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getIsConnectorNoTracking, filterOrders, normalizeDeliveryStatus } from "../utils/orders";
 import { fetchProducts, enhanceOrders, since30DaysISO, fetchAllOrdersPages } from "../utils/loader";
@@ -48,10 +48,10 @@ export const loader = async ({ request }) => {
     const ordersPromise = fetchAllOrdersPages(admin, ORDERS_PAGE_QUERY, sinceISO, session.shop)
       .then(raw => enhanceOrders(raw));
 
-    return defer({ ordersPromise, storeProducts });
+    return { ordersPromise, storeProducts };
   } catch (err) {
     console.error('[app.orders loader Exception]:', err?.stack || err?.message || err);
-    return defer({ ordersPromise: Promise.resolve([]), storeProducts: [] });
+    return { ordersPromise: Promise.resolve([]), storeProducts: [] };
   }
 };
 

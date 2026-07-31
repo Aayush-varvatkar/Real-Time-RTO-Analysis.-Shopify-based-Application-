@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect, Suspense, lazy } from "react";
-import { useLoaderData, Await, defer } from "react-router";
+import { useLoaderData, Await } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getIsConnectorNoTracking, filterOrders } from "../utils/orders";
-import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
+import { fetchProducts, enhanceOrders, since30DaysISO, fetchAllOrdersPages } from "../utils/loader";
 import { checkAuthenticatedRateLimit } from "../utils/rateLimiter";
 import { SkeletonDashboard } from "../components/SkeletonDashboard";
 import Filters from "../components/Filters";
@@ -68,10 +68,10 @@ export const loader = async ({ request }) => {
     const ordersPromise = fetchAllOrdersPages(admin, DASHBOARD_ORDERS_QUERY, sinceISO, session.shop)
       .then(raw => enhanceOrders(raw));
 
-    return defer({ ordersPromise, storeProducts });
+    return { ordersPromise, storeProducts };
   } catch (err) {
     console.error('[app._index loader Exception]:', err?.stack || err?.message || err);
-    return defer({ ordersPromise: Promise.resolve([]), storeProducts: [] });
+    return { ordersPromise: Promise.resolve([]), storeProducts: [] };
   }
 };
 
