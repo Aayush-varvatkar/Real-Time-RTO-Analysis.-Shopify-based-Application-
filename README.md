@@ -1,237 +1,257 @@
-# Shopify App Template - React Router
+# ⚡ Real-Time RTO Analysis & Risk Predictor — Shopify Application
 
-This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using [React Router](https://reactrouter.com/). It was forked from the [Shopify Remix app template](https://github.com/Shopify/shopify-app-template-remix) and converted to React Router.
+[![Shopify App](https://img.shields.io/badge/Shopify-Embedded%20App-95BF47.svg?style=for-the-badge&logo=shopify&logoColor=white)](https://shopify.dev/docs/apps)
+[![React Router](https://img.shields.io/badge/Framework-React%20Router%20v7-CA4245.svg?style=for-the-badge&logo=reactrouter&logoColor=white)](https://reactrouter.com/)
+[![React](https://img.shields.io/badge/Frontend-React%2018-61DAFB.svg?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
+[![Polaris](https://img.shields.io/badge/UI-Shopify%20Polaris%20v13-5C6AC4.svg?style=for-the-badge&logo=shopify&logoColor=white)](https://polaris.shopify.com/)
+[![Prisma](https://img.shields.io/badge/ORM-Prisma%20v6-2D3748.svg?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-4169E1.svg?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Deployment-Docker%20%7C%20Render-2496ED.svg?style=for-the-badge&logo=docker&logoColor=white)](https://render.com/)
+[![License](https://img.shields.io/badge/License-MIT-purple.svg?style=for-the-badge)](LICENSE)
 
-Rather than cloning this repo, follow the [Quick Start steps](https://github.com/Shopify/shopify-app-template-react-router#quick-start).
+> An enterprise-grade, real-time **RTO (Return to Origin) Analytics & Risk Prediction Embedded Application** built for **Shopify Merchants**. Helps eCommerce brands track delivery trends, identify high-risk products & geographic regions across India, analyze Cash-On-Delivery (COD) vs Prepaid returns, and export presentation-ready reports.
 
-Visit the [`shopify.dev` documentation](https://shopify.dev/docs/api/shopify-app-react-router) for more details on the React Router app package.
+---
 
-## Upgrading from Remix
+## 🌐 Live Production Application & Deployment
 
-If you have an existing Remix app that you want to upgrade to React Router, please follow the [upgrade guide](https://github.com/Shopify/shopify-app-template-react-router/wiki/Upgrading-from-Remix). Otherwise, please follow the quick start guide below.
+| Attribute | Details |
+| :--- | :--- |
+| **Live App URL** | [`https://real-time-rto-analysis-shopify-based.onrender.com`](https://real-time-rto-analysis-shopify-based.onrender.com) |
+| **Deployment Host** | **Render PaaS** (Containerized Docker Web Service) |
+| **Database Server** | **PostgreSQL** (Managed Cloud Instance via Prisma ORM) |
+| **Container Base** | `node:20-alpine` (Security-hardened least-privilege non-root execution) |
+| **Shopify API Version** | `2026-04` (GraphQL Admin API) |
+| **App Type** | Embedded Shopify Admin Extension (`embedded = true`) |
 
-## Quick start
+---
 
-### Prerequisites
+## ✨ Key Features & Business Value
 
-Before you begin, you'll need to [download and install the Shopify CLI](https://shopify.dev/docs/apps/tools/cli/getting-started) if you haven't already.
+### 1. 🗺️ State-Wise India Heatmap Visualization
+- Interactive geographical heatmap (`IndiaHeatMap.jsx`) mapping delivery metrics and RTO percentages state-by-state across India.
+- Visual breakdown of high-risk logistics zones, allowing merchants to restrict COD or adjust shipping rules per region.
 
-### Setup
+### 2. 📊 Real-Time Financial & Order Performance Dashboard
+- **Order Metrics**: Total Orders, Delivered, In-Transit, RTO Count, and Return Rate Percentage (%).
+- **Revenue Analytics**: Total Gross Revenue, Delivered Revenue, **RTO Loss Impact**, and Net Profit Realization.
+- **Interactive Visualizations**: Dynamic trend charts built with `Recharts` (`OrderHistoryChart.jsx`, `BreakdownBarChart.jsx`).
 
-```shell
-shopify app init --template=https://github.com/Shopify/shopify-app-template-react-router
+### 3. 🛍️ Product-Level RTO & Risk Profiling
+- Product-wise and SKU-wise return rate breakdown (`ProductRTO.jsx`, `ProductRevenue.jsx`).
+- Pinpoints specific inventory items causing disproportionate shipping & return losses.
+
+### 4. 💳 Payment Method Risk Analysis (COD vs Prepaid)
+- Comprehensive comparison of return rates between **Cash-on-Delivery (COD)** and **Prepaid** payment gateways.
+- Enables merchants to optimize payment rules, require partial COD deposits, or offer prepaid incentives.
+
+### 5. 📑 One-Click PowerPoint (.pptx) & Executive Presentation Export
+- Export real-time analytics dashboards into fully formatted PowerPoint presentations (`exportPPT.js` powered by `pptxgenjs` and `html2canvas`).
+- Perfect for weekly business reviews, logistics audits, and stakeholder reporting.
+
+### 6. 🔍 Multi-Dimensional Filtering Engine
+- Filter dashboard metrics by custom Date Ranges (Today, Last 7 Days, Last 30 Days, Custom Range), Order Statuses, Payment Methods, States/Regions, and Product SKUs.
+
+### 7. ⚡ Intelligent GraphQL API Rate Limiting
+- Custom Token Bucket Rate Limiter (`rateLimiter.js`) ensuring seamless, high-volume data fetching without exceeding Shopify GraphQL API limits.
+
+---
+
+## 🛠️ Complete Tech Stack
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          SHOPIFY RTO ANALYSIS APP                           │
+├──────────────────────┬──────────────────────┬───────────────────────────────┤
+│  Frontend Layer      │  Backend & API       │  Database & Infrastructure    │
+│                      │                      │                               │
+│  • React 18          │  • Node.js 20.x      │  • PostgreSQL                 │
+│  • React Router v7   │  • React Router Server│  • Prisma ORM v6              │
+│  • Shopify Polaris   │  • Shopify GraphQL   │  • Render Cloud Host          │
+│  • App Bridge React  │  • OAuth 2.0 Auth    │  • Docker (Alpine Linux)      │
+│  • Recharts & Maps   │  • Webhook Handlers  │  • Session Storage Prisma     │
+└──────────────────────┴──────────────────────┴───────────────────────────────┘
 ```
 
-### Local Development
+### Frontend Framework & UI Design System
+- **React 18**: Modern UI engine with hooks and functional state management.
+- **React Router v7 (`@react-router/dev`, `@react-router/node`)**: Full-stack server-driven routing and data loaders.
+- **Shopify Polaris v13 (`@shopify/polaris`, `@shopify/polaris-icons`)**: Official Shopify design system matching native Shopify admin experience.
+- **Shopify App Bridge (`@shopify/app-bridge-react`)**: Seamless embedded app integration inside the Shopify Admin panel.
+- **Recharts v3 (`recharts`)**: High-performance data visualization for order trends and revenue loss.
 
-```shell
-shopify app dev
-```
+### Backend Server & Shopify API Engine
+- **Node.js 20.x Runtime**: High-throughput JavaScript backend environment.
+- **Shopify Application Core (`@shopify/shopify-app-react-router`)**: Handles Shopify admin authentication, session management, and GraphQL client initialization.
+- **GraphQL Admin API (`2026-04`)**: Efficient data queries fetching orders, products, customers, fulfillment events, and shipping metadata.
+- **Rate Limiter (`rateLimiter.js`)**: Queue and bucket manager to prevent API rate limit throttles during batch queries.
 
-Press P to open the URL to your app. Once you click install, you can start development.
+### Database & Session Persistence
+- **Database Engine**: **PostgreSQL** (Production database storing shop sessions and authentication tokens).
+- **ORM**: **Prisma ORM (`^6.19.3`)** for type-safe schema definitions and automatic migrations.
+- **Session Storage**: `@shopify/shopify-app-session-storage-prisma` for session persistence across merchant logins.
 
-Local development is powered by [the Shopify CLI](https://shopify.dev/docs/apps/tools/cli). It logs into your account, connects to an app, provides environment variables, updates remote config, creates a tunnel and provides commands to generate extensions.
+### Deployment & DevOps Infrastructure
+- **Production Server**: **Render PaaS** (`real-time-rto-analysis-shopify-based.onrender.com`).
+- **Containerization**: **Docker** (`Dockerfile` based on `node:20-alpine`).
+- **Process Security**: Runs under isolated non-root user `appuser:appgroup` adhering to least-privilege security standards.
 
-### Authenticating and querying data
+---
 
-To authenticate and query data you can use the `shopify` const that is exported from `/app/shopify.server.js`:
+## 🗄️ Database Architecture (Prisma Schema)
 
-```js
-export async function loader({ request }) {
-  const { admin } = await shopify.authenticate.admin(request);
+The database uses PostgreSQL managed by Prisma to safely persist active Shopify merchant sessions:
 
-  const response = await admin.graphql(`
-    {
-      products(first: 25) {
-        nodes {
-          title
-          description
-        }
-      }
-    }`);
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
-  const {
-    data: {
-      products: { nodes },
-    },
-  } = await response.json();
-
-  return nodes;
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
 }
 ```
 
-This template comes pre-configured with examples of:
+---
 
-1. Setting up your Shopify app in [/app/shopify.server.ts](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/shopify.server.ts)
-2. Querying data using Graphql. Please see: [/app/routes/app.\_index.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/app._index.tsx).
-3. Responding to webhooks. Please see [/app/routes/webhooks.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/webhooks.app.uninstalled.tsx).
-4. Using metafields, metaobjects, and declarative custom data definitions. Please see [/app/routes/app.\_index.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/app._index.tsx) and [shopify.app.toml](https://github.com/Shopify/shopify-app-template-react-router/blob/main/shopify.app.toml).
+## 📁 Repository Directory Structure
 
-Please read the [documentation for @shopify/shopify-app-react-router](https://shopify.dev/docs/api/shopify-app-react-router) to see what other API's are available.
-
-## Shopify Dev MCP
-
-This template is configured with the Shopify Dev MCP. This instructs [Cursor](https://cursor.com/), [GitHub Copilot](https://github.com/features/copilot) and [Claude Code](https://claude.com/product/claude-code) and [Google Gemini CLI](https://github.com/google-gemini/gemini-cli) to use the Shopify Dev MCP.
-
-For more information on the Shopify Dev MCP please read [the documentation](https://shopify.dev/docs/apps/build/devmcp).
-
-## Deployment
-
-### Application Storage
-
-This template uses [Prisma](https://www.prisma.io/) to store session data, by default using an [SQLite](https://www.sqlite.org/index.html) database.
-The database is defined as a Prisma schema in `prisma/schema.prisma`.
-
-This use of SQLite works in production if your app runs as a single instance.
-The database that works best for you depends on the data your app needs and how it is queried.
-Here’s a short list of databases providers that provide a free tier to get started:
-
-| Database   | Type             | Hosters                                                                                                                                                                                                                                    |
-| ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| MySQL      | SQL              | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-mysql), [Planet Scale](https://planetscale.com/), [Amazon Aurora](https://aws.amazon.com/rds/aurora/), [Google Cloud SQL](https://cloud.google.com/sql/docs/mysql) |
-| PostgreSQL | SQL              | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-postgresql), [Amazon Aurora](https://aws.amazon.com/rds/aurora/), [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres)                                   |
-| Redis      | Key-value        | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-redis), [Amazon MemoryDB](https://aws.amazon.com/memorydb/)                                                                                                        |
-| MongoDB    | NoSQL / Document | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-mongodb), [MongoDB Atlas](https://www.mongodb.com/atlas/database)                                                                                                  |
-
-To use one of these, you can use a different [datasource provider](https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#datasource) in your `schema.prisma` file, or a different [SessionStorage adapter package](https://github.com/Shopify/shopify-api-js/blob/main/packages/shopify-api/docs/guides/session-storage.md).
-
-### Build
-
-Build the app by running the command below with the package manager of your choice:
-
-Using yarn:
-
-```shell
-yarn build
+```text
+Real-Time-RTO-Analysis-Shopify-App/
+├── app/
+│   ├── components/           # UI Components & Analytics Views
+│   │   ├── IndiaHeatMap.jsx        # Interactive India RTO Heatmap
+│   │   ├── OrderCards.jsx          # Order volume & status cards
+│   │   ├── RevenueCards.jsx        # Revenue & financial loss metrics
+│   │   ├── ProductRTO.jsx          # Product-wise return breakdown
+│   │   ├── ProductRevenue.jsx      # Product revenue vs return risk
+│   │   ├── RTOAnalysis.jsx         # RTO predictive scoring component
+│   │   ├── OrderHistoryChart.jsx   # Time-series order charts
+│   │   ├── BreakdownBarChart.jsx   # Status breakdown visualization
+│   │   ├── Filters.jsx             # Global date/status/region filter bar
+│   │   └── SkeletonDashboard.jsx   # Polaris shimmer loading skeleton
+│   ├── routes/               # React Router SSR Routes & API endpoints
+│   │   ├── app._index.jsx          # Main RTO Analytics Dashboard
+│   │   ├── app.orders.jsx          # Real-time Order Explorer Grid
+│   │   ├── health.jsx              # Application Health-check endpoint
+│   │   └── webhooks.*.jsx          # Webhook receivers (uninstalled, scope updates)
+│   ├── utils/                # Utility Modules
+│   │   ├── exportPPT.js            # PowerPoint (.pptx) report generator
+│   │   ├── rateLimiter.js          # Shopify GraphQL Rate Limiter
+│   │   ├── orders.js               # Order data transformers
+│   │   └── loader.js               # Dashboard data loader routines
+│   ├── db.server.js          # Prisma database client instance
+│   └── shopify.server.js     # Shopify API configuration & Auth loader
+├── prisma/
+│   └── schema.prisma         # Database models & PostgreSQL configuration
+├── extensions/               # Shopify App Extensions (Checkout / UI extensions)
+├── Dockerfile                # Production Alpine Docker container configuration
+├── shopify.app.toml          # Shopify CLI configuration file
+├── package.json              # Dependencies & deployment scripts
+└── README.md                 # Complete Application Documentation
 ```
 
-Using npm:
+---
 
-```shell
-npm run build
+## 🚀 Environment Variables & Configuration
+
+Create a `.env` file in the project root:
+
+```env
+# Shopify Credentials
+SHOPIFY_API_KEY=581d27169be5b359b888cda24fec4cf7
+SHOPIFY_API_SECRET=your_shopify_api_secret_here
+
+# Access Scopes
+SCOPES=read_all_orders,read_orders,read_products,read_fulfillments,read_customers,read_shipping,read_assigned_fulfillment_orders,read_inventory
+
+# Application URL (Production or Ngrok Development Tunnel)
+SHOPIFY_APP_URL=https://real-time-rto-analysis-shopify-based.onrender.com
+
+# PostgreSQL Database Connection URL
+DATABASE_URL=postgresql://user:password@host:5432/dbname?sslmode=require
+
+# Server Port
+PORT=3000
 ```
 
-Using pnpm:
+---
 
-```shell
-pnpm run build
+## 💻 Local Development Setup
+
+### Prerequisites
+- Node.js 20.x or higher
+- Shopify CLI installed (`npm install -g @shopify/cli`)
+- PostgreSQL instance running (local or cloud)
+
+### Step-by-Step Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/Aayush-varvatkar/Real-Time-RTO-Analysis.-Shopify-based-Application-.git
+   cd Real-Time-RTO-Analysis.-Shopify-based-Application-
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Database Migration & Setup**:
+   ```bash
+   npm run setup
+   ```
+
+4. **Launch Local Shopify Dev Server**:
+   ```bash
+   npm run dev
+   ```
+
+---
+
+## 🐳 Docker Production Build & Deployment
+
+To build and run the Docker container locally or deploy to hosting providers like Render / AWS / GCP:
+
+### Build Container
+```bash
+docker build -t shopify-rto-analysis .
 ```
 
-## Hosting
-
-When you're ready to set up your app in production, you can follow [our deployment documentation](https://shopify.dev/docs/apps/launch/deployment) to host it externally. From there, you have a few options:
-
-- [Google Cloud Run](https://shopify.dev/docs/apps/launch/deployment/deploy-to-google-cloud-run): This tutorial is written specifically for this example repo, and is compatible with the extended steps included in the subsequent [**Build your app**](tutorial) in the **Getting started** docs. It is the most detailed tutorial for taking a React Router-based Shopify app and deploying it to production. It includes configuring permissions and secrets, setting up a production database, and even hosting your apps behind a load balancer across multiple regions.
-- [Fly.io](https://fly.io/docs/js/shopify/): Leverages the Fly.io CLI to quickly launch Shopify apps to a single machine.
-- [Render](https://render.com/docs/deploy-shopify-app): This tutorial guides you through using Docker to deploy and install apps on a Dev store.
-- [Manual deployment guide](https://shopify.dev/docs/apps/launch/deployment/deploy-to-hosting-service): This resource provides general guidance on the requirements of deployment including environment variables, secrets, and persistent data.
-
-When you reach the step for [setting up environment variables](https://shopify.dev/docs/apps/deployment/web#set-env-vars), you also need to set the variable `NODE_ENV=production`.
-
-## Gotchas / Troubleshooting
-
-### Database tables don't exist
-
-If you get an error like:
-
-```
-The table `main.Session` does not exist in the current database.
+### Run Container
+```bash
+docker run -p 3000:3000 --env-file .env shopify-rto-analysis
 ```
 
-Create the database for Prisma. Run the `setup` script in `package.json` using `npm`, `yarn` or `pnpm`.
+---
 
-### Navigating/redirecting breaks an embedded app
+## 🔐 Security & Shopify Webhooks
 
-Embedded apps must maintain the user session, which can be tricky inside an iFrame. To avoid issues:
+- **Least-Privilege Container**: Runs under non-root system account (`appuser`).
+- **OAuth 2.0 Session Handling**: Encrypted session storage in PostgreSQL using `@shopify/shopify-app-session-storage-prisma`.
+- **Automatic Webhooks**:
+  - `app/uninstalled` — Cleans up stored sessions when a merchant uninstalls the app.
+  - `app/scopes_update` — Updates shop authorization access dynamically.
 
-1. Use `Link` from `react-router` or `@shopify/polaris`. Do not use `<a>`.
-2. Use `redirect` returned from `authenticate.admin`. Do not use `redirect` from `react-router`
-3. Use `useSubmit` from `react-router`.
+---
 
-This only applies if your app is embedded, which it will be by default.
+⭐ **Star this repository if you find this RTO Analysis Shopify app useful!**
 
-### Webhooks: shop-specific webhook subscriptions aren't updated
-
-If you are registering webhooks in the `afterAuth` hook, using `shopify.registerWebhooks`, you may find that your subscriptions aren't being updated.
-
-Instead of using the `afterAuth` hook declare app-specific webhooks in the `shopify.app.toml` file. This approach is easier since Shopify will automatically sync changes every time you run `deploy` (e.g: `npm run deploy`). Please read these guides to understand more:
-
-1. [app-specific vs shop-specific webhooks](https://shopify.dev/docs/apps/build/webhooks/subscribe#app-specific-subscriptions)
-2. [Create a subscription tutorial](https://shopify.dev/docs/apps/build/webhooks/subscribe/get-started?deliveryMethod=https)
-
-If you do need shop-specific webhooks, keep in mind that the package calls `afterAuth` in 2 scenarios:
-
-- After installing the app
-- When an access token expires
-
-During normal development, the app won't need to re-authenticate most of the time, so shop-specific subscriptions aren't updated. To force your app to update the subscriptions, uninstall and reinstall the app. Revisiting the app will call the `afterAuth` hook.
-
-### Webhooks: Admin created webhook failing HMAC validation
-
-Webhooks subscriptions created in the [Shopify admin](https://help.shopify.com/en/manual/orders/notifications/webhooks) will fail HMAC validation. This is because the webhook payload is not signed with your app's secret key.
-
-The recommended solution is to use [app-specific webhooks](https://shopify.dev/docs/apps/build/webhooks/subscribe#app-specific-subscriptions) defined in your toml file instead. Test your webhooks by triggering events manually in the Shopify admin(e.g. Updating the product title to trigger a `PRODUCTS_UPDATE`).
-
-### Webhooks: Admin object undefined on webhook events triggered by the CLI
-
-When you trigger a webhook event using the Shopify CLI, the `admin` object will be `undefined`. This is because the CLI triggers an event with a valid, but non-existent, shop. The `admin` object is only available when the webhook is triggered by a shop that has installed the app. This is expected.
-
-Webhooks triggered by the CLI are intended for initial experimentation testing of your webhook configuration. For more information on how to test your webhooks, see the [Shopify CLI documentation](https://shopify.dev/docs/apps/tools/cli/commands#webhook-trigger).
-
-### Incorrect GraphQL Hints
-
-By default the [graphql.vscode-graphql](https://marketplace.visualstudio.com/items?itemName=GraphQL.vscode-graphql) extension for will assume that GraphQL queries or mutations are for the [Shopify Admin API](https://shopify.dev/docs/api/admin). This is a sensible default, but it may not be true if:
-
-1. You use another Shopify API such as the storefront API.
-2. You use a third party GraphQL API.
-
-If so, please update [.graphqlrc.ts](https://github.com/Shopify/shopify-app-template-react-router/blob/main/.graphqlrc.ts).
-
-### Using Defer & await for streaming responses
-
-By default the CLI uses a cloudflare tunnel. Unfortunately cloudflare tunnels wait for the Response stream to finish, then sends one chunk. This will not affect production.
-
-To test [streaming using await](https://reactrouter.com/api/components/Await#await) during local development we recommend [localhost based development](https://shopify.dev/docs/apps/build/cli-for-apps/networking-options#localhost-based-development).
-
-### "nbf" claim timestamp check failed
-
-This is because a JWT token is expired. If you are consistently getting this error, it could be that the clock on your machine is not in sync with the server. To fix this ensure you have enabled "Set time and date automatically" in the "Date and Time" settings on your computer.
-
-### Using MongoDB and Prisma
-
-If you choose to use MongoDB with Prisma, there are some gotchas in Prisma's MongoDB support to be aware of. Please see the [Prisma SessionStorage README](https://www.npmjs.com/package/@shopify/shopify-app-session-storage-prisma#mongodb).
-
-### Unable to require(`C:\...\query_engine-windows.dll.node`).
-
-Unable to require(`C:\...\query_engine-windows.dll.node`).
-The Prisma engines do not seem to be compatible with your system.
-
-query_engine-windows.dll.node is not a valid Win32 application.
-
-**Fix:** Set the environment variable:
-
-```shell
-PRISMA_CLIENT_ENGINE_TYPE=binary
-```
-
-This forces Prisma to use the binary engine mode, which runs the query engine as a separate process and can work via emulation on Windows ARM64.
-
-## Resources
-
-React Router:
-
-- [React Router docs](https://reactrouter.com/home)
-
-Shopify:
-
-- [Intro to Shopify apps](https://shopify.dev/docs/apps/getting-started)
-- [Shopify App React Router docs](https://shopify.dev/docs/api/shopify-app-react-router)
-- [Shopify CLI](https://shopify.dev/docs/apps/tools/cli)
-- [Shopify App Bridge](https://shopify.dev/docs/api/app-bridge-library).
-- [Polaris Web Components](https://shopify.dev/docs/api/app-home/polaris-web-components).
-- [App extensions](https://shopify.dev/docs/apps/app-extensions/list)
-- [Shopify Functions](https://shopify.dev/docs/api/functions)
-
-Internationalization:
-
-- [Internationalizing your app](https://shopify.dev/docs/apps/best-practices/internationalization/getting-started)
+*Developed by [Aayush Varvatkar](https://github.com/Aayush-varvatkar)*
