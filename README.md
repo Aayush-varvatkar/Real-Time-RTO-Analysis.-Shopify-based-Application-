@@ -98,39 +98,6 @@
 
 ---
 
-## 🗄️ Database Architecture (Prisma Schema)
-
-The database uses PostgreSQL managed by Prisma to safely persist active Shopify merchant sessions:
-
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model Session {
-  id                  String    @id
-  shop                String
-  state               String
-  isOnline            Boolean   @default(false)
-  scope               String?
-  expires             DateTime?
-  accessToken         String
-  userId              BigInt?
-  firstName           String?
-  lastName            String?
-  email               String?
-  accountOwner        Boolean   @default(false)
-  locale              String?
-  collaborator        Boolean?  @default(false)
-  emailVerified       Boolean?  @default(false)
-  refreshToken        String?
-  refreshTokenExpires DateTime?
-}
-```
-
----
-
 ## 📁 Repository Directory Structure
 
 ```text
