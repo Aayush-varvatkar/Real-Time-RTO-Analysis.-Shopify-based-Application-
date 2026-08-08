@@ -143,14 +143,14 @@ Create a `.env` file in the project root:
 
 ```env
 # Shopify Credentials
-SHOPIFY_API_KEY=581d27169be5b359b888cda24fec4cf7
+SHOPIFY_API_KEY=581d27169bexxxxxxxxxxxxxxxxxxxxx
 SHOPIFY_API_SECRET=your_shopify_api_secret_here
 
 # Access Scopes
 SCOPES=read_all_orders,read_orders,read_products,read_fulfillments,read_customers,read_shipping,read_assigned_fulfillment_orders,read_inventory
 
 # Application URL (Production or Ngrok Development Tunnel)
-SHOPIFY_APP_URL=https://real-time-rto-analysis-shopify-based.onrender.com
+SHOPIFY_APP_URL=https://real-xxxxxxxx-analysis-xxxxxxx-based.onrender.com
 
 # PostgreSQL Database Connection URL
 DATABASE_URL=postgresql://user:password@host:5432/dbname?sslmode=require
@@ -158,56 +158,6 @@ DATABASE_URL=postgresql://user:password@host:5432/dbname?sslmode=require
 # Server Port
 PORT=3000
 ```
-
----
-
-## 💻 Local Development Setup
-
-### Prerequisites
-- Node.js 20.x or higher
-- Shopify CLI installed (`npm install -g @shopify/cli`)
-- PostgreSQL instance running (local or cloud)
-
-### Step-by-Step Installation
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Aayush-varvatkar/Real-Time-RTO-Analysis.-Shopify-based-Application-.git
-   cd Real-Time-RTO-Analysis.-Shopify-based-Application-
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Database Migration & Setup**:
-   ```bash
-   npm run setup
-   ```
-
-4. **Launch Local Shopify Dev Server**:
-   ```bash
-   npm run dev
-   ```
-
----
-
-## 🐳 Docker Production Build & Deployment
-
-To build and run the Docker container locally or deploy to hosting providers like Render / AWS / GCP:
-
-### Build Container
-```bash
-docker build -t shopify-rto-analysis .
-```
-
-### Run Container
-```bash
-docker run -p 3000:3000 --env-file .env shopify-rto-analysis
-```
-
----
 
 ## 🔐 Security & Shopify Webhooks
 
