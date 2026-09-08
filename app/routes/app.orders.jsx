@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
 import { useLoaderData, Await } from "react-router";
 import { authenticate } from "../shopify.server";
 import { getIsConnectorNoTracking, filterOrders, normalizeDeliveryStatus } from "../utils/orders";
-import { fetchProducts, enhanceOrders, since30DaysISO, fetchAllOrdersPages } from "../utils/loader";
+import { fetchProducts, enhanceOrders, since90DaysISO, fetchAllOrdersPages } from "../utils/loader";
 import { checkAuthenticatedRateLimit } from "../utils/rateLimiter";
 import { SkeletonOrdersTable } from "../components/SkeletonDashboard";
 import Filters from "../components/Filters";
@@ -42,7 +42,7 @@ export const loader = async ({ request }) => {
     const rateLimitRes = checkAuthenticatedRateLimit(request, session.shop);
     if (rateLimitRes) return rateLimitRes;
 
-    const sinceISO = since30DaysISO();
+    const sinceISO = since90DaysISO();
     const storeProducts = await fetchProducts(admin, session.shop);
 
     const ordersPromise = fetchAllOrdersPages(admin, ORDERS_PAGE_QUERY, sinceISO, session.shop)
@@ -80,7 +80,7 @@ function OrdersContent({ orders, storeProducts }) {
     const end = new Date();
     end.setHours(0, 0, 0, 0);
     const start = new Date(end);
-    start.setDate(end.getDate() - 29);
+    start.setDate(end.getDate() - 89);
     return { start, end };
   });
 

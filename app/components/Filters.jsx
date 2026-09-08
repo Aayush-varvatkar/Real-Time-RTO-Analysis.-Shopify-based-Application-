@@ -61,7 +61,7 @@ export default function Filters({
   }));
 
   // Preset filter state
-  const [presetFilter, setPresetFilter] = useState('last30');
+  const [presetFilter, setPresetFilter] = useState('last90');
 
   const presetOptions = [
     { label: 'Today', value: 'today' },

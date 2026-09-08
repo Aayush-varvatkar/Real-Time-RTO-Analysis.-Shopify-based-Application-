@@ -1,7 +1,7 @@
 import { normalizeDeliveryStatus, enrichConnectorOrderDetails } from "./orders.js";
 
 const MAX_PRODUCT_PAGES = 2; // Up to 500 active products (was 5 — most stores have < 500)
-const MAX_ORDER_PAGES = 3;   // Up to 750 orders (was 8 — reduced to prevent SSR timeout)
+const MAX_ORDER_PAGES = 6;   // Up to 1500 orders (was 3 — expanded to support 3-month data limit)
 
 // ── Product cache (per shop, 15-min TTL) ──
 const _productCache = new Map();
@@ -149,11 +149,11 @@ export function enhanceOrders(rawOrders) {
 }
 
 /**
- * Returns a YYYY-MM-DD date string 30 days ago for initial fast order fetching.
+ * Returns a YYYY-MM-DD date string 90 days ago (3 months) for order fetching.
  */
 export function since30DaysISO() {
   const d = new Date();
-  d.setDate(d.getDate() - 30);
+  d.setDate(d.getDate() - 90);
   return d.toISOString().split('T')[0];
 }
 
